@@ -35,7 +35,7 @@ export default function Login() {
     e.preventDefault();
     if (!email || !password) return toast.error("Please fill in both fields");
 
-    if (role === "teacher") {
+    if (role === "teacher" || role === "senior-teacher" || role === "student") {
       const response = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -44,7 +44,7 @@ export default function Login() {
 
       const data = await response.json();
       if (!response.ok) {
-        return toast.error(data?.error || "Teacher login failed");
+        return toast.error(data?.error || `${ROLES.find(r => r.id === role)?.title} login failed`);
       }
 
       login(role, email, data.user.name);
@@ -106,7 +106,7 @@ export default function Login() {
         <div className="w-full max-w-lg space-y-6">
           <div>
             <h2 className="font-display text-3xl font-bold text-secondary">Welcome back!</h2>
-            <p className="text-muted-foreground mt-1">Pick a role to sign in. Teacher login validates against database credentials.</p>
+            <p className="text-muted-foreground mt-1">Pick a role to sign in. Student, Teacher, and Senior Teacher login validate against database credentials.</p>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
