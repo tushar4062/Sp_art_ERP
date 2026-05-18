@@ -13,9 +13,12 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 type RoleOption = { id: Role; title: string; desc: string; icon: React.ComponentType<{className?: string}>; gradient: string; demoEmail: string };
+const ADMIN_EMAIL = process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? "anjali@littlebrushes.in";
+const ADMIN_PASSWORD = process.env.NEXT_PUBLIC_ADMIN_PASSWORD ?? "demo1234";
+
 const ROLES: RoleOption[] = [
   { id: "super-admin",    title: "Super Admin",    desc: "Manage all institutes",   icon: Crown,         gradient: "from-secondary to-secondary/70", demoEmail: "vikram@littlebrushes.in" },
-  { id: "admin",          title: "Admin",          desc: "Run the academy",         icon: Shield,        gradient: "from-primary to-accent",         demoEmail: "anjali@littlebrushes.in" },
+  { id: "admin",          title: "Admin",          desc: "Run the academy",         icon: Shield,        gradient: "from-primary to-accent",         demoEmail: ADMIN_EMAIL },
   { id: "senior-teacher", title: "Senior Teacher", desc: "Approvals & oversight",   icon: GraduationCap, gradient: "from-accent to-primary",          demoEmail: "rahul@littlebrushes.in" },
   { id: "teacher",        title: "Teacher",        desc: "Classes & attendance",    icon: Users,         gradient: "from-success to-info",            demoEmail: "sneha@littlebrushes.in" },
   { id: "student",        title: "Student",        desc: "Classes, fees, certs",    icon: BookOpen,      gradient: "from-info to-secondary",          demoEmail: "aarav@kid.in" },
@@ -23,14 +26,37 @@ const ROLES: RoleOption[] = [
 
 export default function Login() {
   const [role, setRole] = useState<Role>("admin");
-  const [email, setEmail] = useState("anjali@littlebrushes.in");
-  const [password, setPassword] = useState("demo1234");
+  const [email, setEmail] = useState(ADMIN_EMAIL);
+  const [password, setPassword] = useState("");
   const { login } = useAuth();
   const router = useRouter();
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email || !password) return toast.error("Please fill in both fields");
+
+    if (role === "teacher") {
+      const response = await fetch("/api/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password, role }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return toast.error(data?.error || "Teacher login failed");
+      }
+
+      login(role, email, data.user.name);
+      toast.success(`Welcome, ${data.user.name}!`);
+      router.push(`/${role}`);
+      return;
+    }
+
+    if (role === "admin" && (email !== ADMIN_EMAIL || password !== ADMIN_PASSWORD)) {
+      return toast.error("Invalid admin credentials");
+    }
+
     login(role, email);
     toast.success(`Welcome, ${ROLES.find(r => r.id === role)?.title}!`);
     router.push(`/${role}`);
@@ -38,7 +64,8 @@ export default function Login() {
 
   function pickRole(r: Role) {
     setRole(r);
-    setEmail(ROLES.find(x => x.id === r)!.demoEmail);
+    setEmail(r === "admin" ? ADMIN_EMAIL : ROLES.find(x => x.id === r)!.demoEmail);
+    setPassword("");
   }
 
   return (
@@ -79,7 +106,7 @@ export default function Login() {
         <div className="w-full max-w-lg space-y-6">
           <div>
             <h2 className="font-display text-3xl font-bold text-secondary">Welcome back!</h2>
-            <p className="text-muted-foreground mt-1">Pick a role to explore the demo. Any password works.</p>
+            <p className="text-muted-foreground mt-1">Pick a role to sign in. Teacher login validates against database credentials.</p>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -118,7 +145,11 @@ export default function Login() {
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} className="rounded-xl h-11" />
-              <p className="text-[11px] text-muted-foreground">Demo: any password unlocks the dashboard.</p>
+              <p className="text-[11px] text-muted-foreground">
+                {role === "admin"
+                  ? "Admin login uses the env credentials you configured."
+                  : "Demo: any password unlocks the dashboard."}
+              </p>
             </div>
             <Button type="submit" className="w-full h-11 rounded-xl gradient-primary text-white font-bold border-0 hover:opacity-95 shadow-pop">
               Enter dashboard <ArrowRight className="w-4 h-4 ml-1" />
