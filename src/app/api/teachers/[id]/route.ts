@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Teacher from '@/lib/models/Teacher';
+import Credentials from '@/lib/models/Credentials';
 import { Types } from 'mongoose';
 
 export const runtime = 'nodejs';
@@ -81,6 +82,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       classes,
     } = body;
 
+    // Get current teacher to check if name changed
+    const currentTeacher = await Teacher.findById(id);
+    if (!currentTeacher) {
+      return NextResponse.json({ error: 'Teacher not found' }, { status: 404 });
+    }
+    const oldName = currentTeacher.fullName;
+    const nameChanged = oldName !== fullName;
+
     const teacher = await Teacher.findByIdAndUpdate(
       id,
       {
@@ -109,6 +118,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (!teacher) {
       return NextResponse.json({ error: 'Teacher not found' }, { status: 404 });
+    }
+
+    // Synchronize name change to Credentials collection
+    if (nameChanged && email) {
+      try {
+        await Credentials.findOneAndUpdate(
+          { email: email.toLowerCase(), role: 'teacher' },
+          { name: fullName },
+          { new: true }
+        );
+      } catch (syncError) {
+        console.error('Warning: Failed to sync teacher name to credentials:', syncError);
+      }
     }
 
     return NextResponse.json({

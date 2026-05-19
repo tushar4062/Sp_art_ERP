@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import Student from '@/lib/models/Student';
+import StudentCredentials from '@/lib/models/StudentCredentials';
+import Credentials from '@/lib/models/Credentials';
 
 export const runtime = 'nodejs';
 
@@ -58,6 +60,10 @@ export async function PUT(request: Request, context: unknown) {
       }
     }
 
+    // Store the old name to check if it changed
+    const oldName = student.fullName;
+    const nameChanged = oldName !== fullName;
+
     student.fullName = fullName;
     student.email = email;
     student.badgeId = badgeId;
@@ -85,6 +91,28 @@ export async function PUT(request: Request, context: unknown) {
     student.feeStatus = feeStatus;
 
     await student.save();
+
+    // Synchronize name change to Credentials collections
+    if (nameChanged && email) {
+      try {
+        // Update StudentCredentials by email reference
+        await StudentCredentials.findOneAndUpdate(
+          { email: email.toLowerCase() },
+          { name: fullName },
+          { new: true }
+        );
+
+        // Update Credentials (generic credentials) by email and role='student'
+        await Credentials.findOneAndUpdate(
+          { email: email.toLowerCase(), role: 'student' },
+          { name: fullName },
+          { new: true }
+        );
+      } catch (syncError) {
+        // Log sync error but don't fail the main student update
+        console.error('Warning: Failed to sync name to credentials:', syncError);
+      }
+    }
 
     return NextResponse.json({
       message: 'Student updated successfully',

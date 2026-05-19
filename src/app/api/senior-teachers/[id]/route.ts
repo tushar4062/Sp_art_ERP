@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import SeniorTeacher from '@/lib/models/SeniorTeacher';
+import Credentials from '@/lib/models/Credentials';
 
 export const runtime = 'nodejs';
 
@@ -78,9 +79,30 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       }
     }
 
+    // Get current teacher to check if name changed
+    const currentTeacher = await SeniorTeacher.findById(id);
+    if (!currentTeacher) {
+      return NextResponse.json({ error: 'Senior teacher not found' }, { status: 404 });
+    }
+    const oldName = currentTeacher.fullName;
+    const nameChanged = oldName !== (body.fullName as string);
+
     const teacher = await SeniorTeacher.findByIdAndUpdate(id, updateData, { returnDocument: 'after' });
     if (!teacher) {
       return NextResponse.json({ error: 'Senior teacher not found' }, { status: 404 });
+    }
+
+    // Synchronize name change to Credentials collection
+    if (nameChanged && body.email) {
+      try {
+        await Credentials.findOneAndUpdate(
+          { email: (body.email as string).toLowerCase(), role: 'senior_teacher' },
+          { name: body.fullName },
+          { new: true }
+        );
+      } catch (syncError) {
+        console.error('Warning: Failed to sync senior teacher name to credentials:', syncError);
+      }
     }
 
     return NextResponse.json({

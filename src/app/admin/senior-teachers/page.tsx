@@ -210,13 +210,16 @@ export default function SeniorTeachersPage() {
       });
 
       if (!response.ok) {
-        throw new Error("Upload failed");
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || `Upload failed with status ${response.status}`;
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
       setForm((current) => ({ ...current, profileImage: data.url }));
     } catch (error) {
       console.error("Photo upload error:", error);
+      // Fallback to data URL if upload fails
       const reader = new FileReader();
       reader.onload = () => {
         if (typeof reader.result === "string") {

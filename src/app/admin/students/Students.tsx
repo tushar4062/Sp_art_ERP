@@ -249,7 +249,9 @@ export default function StudentsPage() {
       });
 
       if (!response.ok) {
-        throw new Error('Upload failed');
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || `Upload failed with status ${response.status}`;
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
