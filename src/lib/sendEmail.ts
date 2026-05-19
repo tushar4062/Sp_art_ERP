@@ -30,7 +30,7 @@ export interface SendAccountCreationEmailOptions {
   academyName?: string;
 }
 
-const buildHtml = ({ name, email, password, loginUrl, academyName }: SendAccountCreationEmailOptions) => {
+const buildHtml = ({ name, email, password, loginUrl, academyName }: Omit<SendAccountCreationEmailOptions, 'to'>) => {
   const school = academyName || 'Little Brushes Art Academy';
   const url = loginUrl || 'http://localhost:3000/login';
 
