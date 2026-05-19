@@ -37,8 +37,8 @@ export function Chat() {
   const activeMsgs = useMemo(() => messages.filter(m => m.threadId === active?.id), [messages, active?.id]);
 
   useEffect(() => {
-    if (active) actions.markThreadRead(active.id, role);
-  }, [active?.id, role, active]);
+    if (active?.id) actions.markThreadRead(active.id, role);
+  }, [active?.id, role]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

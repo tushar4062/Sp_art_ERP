@@ -18,10 +18,12 @@ const ROLE_HOMES: Record<Role, string> = {
   "admin": "/admin",
   "senior-teacher": "/senior-teacher",
   "teacher": "/teacher",
-  "student": "/student",
+  "student": "/student/dashboard",
 };
 
-export function roleHome(role: Role) { return ROLE_HOMES[role]; }
+export function roleHome(role: Role) {
+  return ROLE_HOMES[role];
+}
 
 const ROLE_NAMES: Record<Role, string> = {
   "super-admin": "Vikram Mehta",
@@ -31,21 +33,40 @@ const ROLE_NAMES: Record<Role, string> = {
   "student": "Aarav Sharma",
 };
 
+const STORAGE_KEY = "lba.user";
+
+function readStoredUser(): User | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as User) : null;
+  } catch {
+    return null;
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    try { const raw = localStorage.getItem("lba.user"); return raw ? JSON.parse(raw) : null; } catch { return null; }
-  });
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    if (user) localStorage.setItem("lba.user", JSON.stringify(user));
-    else localStorage.removeItem("lba.user");
+    setUser(readStoredUser());
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (user) localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+    else localStorage.removeItem(STORAGE_KEY);
   }, [user]);
 
-  const value = useMemo<AuthCtx>(() => ({
-    user,
-    login: (role, email, name) => setUser({ role, email, name: name ?? ROLE_NAMES[role] }),
-    logout: () => setUser(null),
-  }), [user]);
+  const value = useMemo<AuthCtx>(
+    () => ({
+      user,
+      login: (role, email, name) =>
+        setUser({ role, email, name: name ?? ROLE_NAMES[role] }),
+      logout: () => setUser(null),
+    }),
+    [user],
+  );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

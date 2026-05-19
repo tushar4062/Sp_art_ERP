@@ -397,8 +397,12 @@ export const actions = {
     return m;
   },
   markThreadRead(threadId: string, role: ChatMessage["fromRole"]) {
+    const thread = state.threads.find(t => t.id === threadId);
+    if (!thread || (thread.unread[role] ?? 0) === 0) return;
     set(st => ({
-      threads: st.threads.map(t => t.id === threadId ? { ...t, unread: { ...t.unread, [role]: 0 } } : t),
+      threads: st.threads.map(t =>
+        t.id === threadId ? { ...t, unread: { ...t.unread, [role]: 0 } } : t,
+      ),
     }));
   },
   createChatThread(input: { participants: ChatMessage["fromRole"][]; title: string; subtitle?: string }) {

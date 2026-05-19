@@ -1,0 +1,66 @@
+import { NextRequest } from "next/server";
+import { z } from "zod";
+import dbConnect from "@/lib/mongodb";
+import { apiError, apiSuccess } from "@/lib/api-response";
+import {
+  STUDENT_COOKIE,
+  signStudentToken,
+  studentCookieOptions,
+} from "@/lib/auth/student-jwt";
+import { authenticateStudentLogin, findStudentByEmail } from "@/lib/student-portal";
+
+export const runtime = "nodejs";
+
+const loginSchema = z.object({
+  email: z.string().email("Valid email is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const parsed = loginSchema.safeParse(body);
+    if (!parsed.success) {
+      return apiError(parsed.error.errors.map(e => e.message).join("; "), 422);
+    }
+
+    const email = parsed.data.email.toLowerCase().trim();
+    const { password } = parsed.data;
+
+    await dbConnect();
+
+    const existing = await findStudentByEmail(email);
+    if (!existing) {
+      return apiError(
+        "No student found in the Students module. Ask admin to add your record first.",
+        404,
+      );
+    }
+
+    const student = await authenticateStudentLogin(email, password);
+    if (!student) {
+      return apiError("Invalid password", 401);
+    }
+
+    const token = await signStudentToken({
+      id: student._id.toString(),
+      email: student.email ?? email,
+      role: "student",
+    });
+
+    const response = apiSuccess({
+      user: {
+        name: student.fullName,
+        email: student.email ?? email,
+        role: "student",
+      },
+    });
+
+    response.cookies.set(STUDENT_COOKIE, token, studentCookieOptions());
+    return response;
+  } catch (error) {
+    console.error("[student/login]", error);
+    const message = error instanceof Error ? error.message : "Login failed";
+    return apiError(message.includes("JWT_SECRET") ? message : "Login failed", 500);
+  }
+}

@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 export interface StudentDocument extends mongoose.Document {
   fullName: string;
   email?: string;
+  passwordHash?: string;
   badgeId: string;
   className: string;
   parentName?: string;
@@ -35,6 +36,7 @@ export interface StudentDocument extends mongoose.Document {
 const StudentSchema = new mongoose.Schema<StudentDocument>({
   fullName: { type: String, required: true },
   email: { type: String },
+  passwordHash: { type: String, select: false },
   badgeId: { type: String, required: true, unique: true },
   className: { type: String, required: true },
   parentName: { type: String },
@@ -62,7 +64,11 @@ const StudentSchema = new mongoose.Schema<StudentDocument>({
   feeStatus: { type: String, enum: ['Paid', 'Pending', 'Overdue'], default: 'Pending' },
 }, {
   timestamps: true,
+  collection: 'students',
 });
 
-const StudentModel = mongoose.models.Student as mongoose.Model<StudentDocument>;
-export default StudentModel || mongoose.model<StudentDocument>('Student', StudentSchema);
+const StudentModel =
+  (mongoose.models.Student as mongoose.Model<StudentDocument> | undefined) ??
+  mongoose.model<StudentDocument>('Student', StudentSchema);
+
+export default StudentModel;

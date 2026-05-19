@@ -28,6 +28,7 @@ export default function Login() {
   const [role, setRole] = useState<Role>("admin");
   const [email, setEmail] = useState(ADMIN_EMAIL);
   const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const { login } = useAuth();
   const router = useRouter();
 
@@ -35,31 +36,55 @@ export default function Login() {
     e.preventDefault();
     if (!email || !password) return toast.error("Please fill in both fields");
 
-    if (role === "teacher" || role === "senior-teacher" || role === "student") {
-      const response = await fetch("/api/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password, role }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        return toast.error(data?.error || `${ROLES.find(r => r.id === role)?.title} login failed`);
+    setSubmitting(true);
+    try {
+      if (role === "student") {
+        const response = await fetch("/api/student/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ email: email.trim(), password }),
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data?.error || "Student login failed");
+        }
+        login("student", data.data.user.email, data.data.user.name);
+        toast.success(`Welcome, ${data.data.user.name}!`);
+        router.push("/student/dashboard");
+        return;
       }
 
-      login(role, email, data.user.name);
-      toast.success(`Welcome, ${data.user.name}!`);
-      router.push(`/${role}`);
-      return;
-    }
+      if (role === "teacher" || role === "senior-teacher") {
+        const response = await fetch("/api/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, password, role }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data?.error || `${ROLES.find(r => r.id === role)?.title} login failed`);
+        }
+
+        login(role, email, data.user.name);
+        toast.success(`Welcome, ${data.user.name}!`);
+        router.push(`/${role}`);
+        return;
+      }
 
     if (role === "admin" && (email !== ADMIN_EMAIL || password !== ADMIN_PASSWORD)) {
       return toast.error("Invalid admin credentials");
     }
 
-    login(role, email);
-    toast.success(`Welcome, ${ROLES.find(r => r.id === role)?.title}!`);
-    router.push(`/${role}`);
+      login(role, email);
+      toast.success(`Welcome, ${ROLES.find(r => r.id === role)?.title}!`);
+      router.push(`/${role}`);
+    } catch (error) {
+      toast.error((error as Error).message || "Login failed");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   function pickRole(r: Role) {
@@ -106,7 +131,11 @@ export default function Login() {
         <div className="w-full max-w-lg space-y-6">
           <div>
             <h2 className="font-display text-3xl font-bold text-secondary">Welcome back!</h2>
-            <p className="text-muted-foreground mt-1">Pick a role to sign in. Student, Teacher, and Senior Teacher login validate against database credentials.</p>
+            <p className="text-muted-foreground mt-1">
+              {role === "student"
+                ? "Student login uses your email and password from admin credentials."
+                : "Teacher and Senior Teacher use database credentials. Admin uses env settings."}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -148,11 +177,17 @@ export default function Login() {
               <p className="text-[11px] text-muted-foreground">
                 {role === "admin"
                   ? "Admin login uses the env credentials you configured."
-                  : "Demo: any password unlocks the dashboard."}
+                  : role === "student"
+                    ? "Use the password set when admin created your student account."
+                    : "Enter the password from your credential record."}
               </p>
             </div>
-            <Button type="submit" className="w-full h-11 rounded-xl gradient-primary text-white font-bold border-0 hover:opacity-95 shadow-pop">
-              Enter dashboard <ArrowRight className="w-4 h-4 ml-1" />
+            <Button
+              type="submit"
+              disabled={submitting}
+              className="w-full h-11 rounded-xl gradient-primary text-white font-bold border-0 hover:opacity-95 shadow-pop"
+            >
+              {submitting ? "Signing in…" : "Enter dashboard"} <ArrowRight className="w-4 h-4 ml-1" />
             </Button>
           </form>
 

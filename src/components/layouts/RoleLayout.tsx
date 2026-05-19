@@ -32,7 +32,14 @@ export function RoleLayout({ navItems, role, children }: { navItems: NavItem[]; 
   const pathname = usePathname();
   const theme = ROLE_THEME[role];
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (role === "student") {
+      try {
+        await fetch("/api/student/logout", { method: "POST", credentials: "include" });
+      } catch {
+        /* clear client session anyway */
+      }
+    }
     logout();
     router.push("/login");
   };
@@ -153,8 +160,16 @@ export function RoleLayout({ navItems, role, children }: { navItems: NavItem[]; 
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild><Link href="/login">Switch Role</Link></DropdownMenuItem>
-                  <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+                  {role === "student" ? (
+                    <DropdownMenuItem asChild>
+                      <Link href="/student/profile">Profile</Link>
+                    </DropdownMenuItem>
+                  ) : (
+                    <DropdownMenuItem asChild>
+                      <Link href="/login">Switch Role</Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => void handleLogout()}>Logout</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -181,7 +196,7 @@ export function RequireRole({ role, children }: { role: Role; children: ReactNod
     }
 
     if (user.role !== role) {
-      router.push(`/${user.role}`);
+      router.push(user.role === "student" ? "/student/dashboard" : `/${user.role}`);
     }
   }, [user, role, router]);
 

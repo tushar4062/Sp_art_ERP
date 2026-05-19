@@ -2,13 +2,13 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Little Brushes Art Academy — Design System
+/* Little Brushes Art Academy - Design System
    Modern, professional, refined. All colors HSL.
 */
 
 @layer base {
   :root {
-    /* Neutral surface, slate ink — modern SaaS baseline */
+    /* Neutral surface, slate ink - modern SaaS baseline */
     --background: 220 24% 98%;
     --foreground: 222 32% 12%;
 
@@ -18,7 +18,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 222 32% 12%;
 
-    /* Refined brand orange — slightly desaturated */
+    /* Refined brand orange - slightly desaturated */
     --primary: 18 88% 54%;
     --primary-foreground: 0 0% 100%;
     --primary-soft: 18 88% 96%;
@@ -65,7 +65,7 @@
     --role-teacher: 158 72% 38%;
     --role-student: 214 84% 50%;
 
-    /* Gradients — subtle, monochrome-ish */
+    /* Gradients - subtle, monochrome-ish */
     --gradient-primary: linear-gradient(135deg, hsl(18 88% 54%), hsl(14 82% 48%));
     --gradient-purple: linear-gradient(135deg, hsl(258 52% 32%), hsl(258 48% 44%));
     --gradient-sunny:  linear-gradient(135deg, hsl(42 92% 56%), hsl(28 88% 54%));

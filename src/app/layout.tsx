@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { Providers } from "./providers";
+import { ClientProviders } from "./client-providers";
 import "@/index.css";
-// eslint-disable-next-line react-refresh/only-export-components
+
 export const metadata: Metadata = {
   title: "Little Brushes Studio - ERP System",
   description: "ERP system for Little Brushes Studio",
@@ -9,13 +9,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
-    <html lang="en">
-      <body>
-        <Providers>{children}</Providers>
+    <html lang="en" suppressHydrationWarning>
+      <body suppressHydrationWarning>
+        <ClientProviders>{children}</ClientProviders>
       </body>
     </html>
   );
