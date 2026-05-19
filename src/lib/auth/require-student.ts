@@ -1,17 +1,16 @@
 import { NextRequest } from "next/server";
-import { STUDENT_COOKIE, verifyStudentToken } from "@/lib/auth/student-jwt";
+import mongoose from "mongoose";
+import { STUDENT_SESSION_COOKIE } from "@/lib/auth/portal-session";
 import { apiError } from "@/lib/api-response";
 
 export async function requireStudentFromRequest(request: NextRequest) {
-  const token = request.cookies.get(STUDENT_COOKIE)?.value;
-  if (!token) {
+  const id = request.cookies.get(STUDENT_SESSION_COOKIE)?.value;
+  if (!id || !mongoose.Types.ObjectId.isValid(id)) {
     return { ok: false as const, response: apiError("Unauthorized", 401) };
   }
 
-  const student = await verifyStudentToken(token);
-  if (!student) {
-    return { ok: false as const, response: apiError("Invalid or expired session", 401) };
-  }
-
-  return { ok: true as const, student };
+  return {
+    ok: true as const,
+    student: { id, email: "" },
+  };
 }

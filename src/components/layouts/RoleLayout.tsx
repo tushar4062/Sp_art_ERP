@@ -3,7 +3,7 @@
 import { ReactNode, useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Bell, ChevronDown, LogOut, Menu, Palette, X, type LucideIcon } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Menu, Palette, User, X, type LucideIcon } from "lucide-react";
 import { Logo } from "@/components/shared/Logo";
 import { Avatar } from "@/components/shared/Avatar";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,13 @@ export function RoleLayout({ navItems, role, children }: { navItems: NavItem[]; 
     if (role === "student") {
       try {
         await fetch("/api/student/logout", { method: "POST", credentials: "include" });
+      } catch {
+        /* clear client session anyway */
+      }
+    }
+    if (role === "teacher") {
+      try {
+        await fetch("/api/teacher/logout", { method: "POST", credentials: "include" });
       } catch {
         /* clear client session anyway */
       }
@@ -160,7 +167,17 @@ export function RoleLayout({ navItems, role, children }: { navItems: NavItem[]; 
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>{user?.email}</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  {role === "student" ? (
+                  {role === "teacher" ? (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link href="/teacher/profile" className="cursor-pointer">
+                          <User className="mr-2 h-4 w-4" />
+                          Profile
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  ) : role === "student" ? (
                     <DropdownMenuItem asChild>
                       <Link href="/student/profile">Profile</Link>
                     </DropdownMenuItem>

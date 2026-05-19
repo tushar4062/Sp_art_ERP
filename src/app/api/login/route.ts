@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
 import Credential from '@/lib/models/Credentials';
+import Teacher from '@/lib/models/Teacher';
+import { TEACHER_SESSION_COOKIE, portalSessionCookieOptions } from '@/lib/auth/portal-session';
 
 export const runtime = 'nodejs';
 
@@ -42,6 +44,33 @@ export async function POST(request: NextRequest) {
     const isPasswordValid = await bcrypt.compare(password, credential.passwordHash);
     if (!isPasswordValid) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
+    if (expectedRole === 'teacher') {
+      const emailNorm = credential.email.toLowerCase().trim();
+      const esc = emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const teacher = await Teacher.findOne({
+        email: { $regex: new RegExp(`^${esc}$`, 'i') },
+      });
+      if (!teacher) {
+        return NextResponse.json(
+          {
+            error:
+              'No teacher record found for this email. Ask admin to add you under Teachers with the same email as your login.',
+          },
+          { status: 404 },
+        );
+      }
+
+      const res = NextResponse.json({
+        user: {
+          email: credential.email,
+          name: credential.name,
+          role,
+        },
+      });
+      res.cookies.set(TEACHER_SESSION_COOKIE, teacher._id.toString(), portalSessionCookieOptions());
+      return res;
     }
 
     return NextResponse.json({

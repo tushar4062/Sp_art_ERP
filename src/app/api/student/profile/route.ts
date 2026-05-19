@@ -3,12 +3,7 @@ import { z } from "zod";
 import dbConnect from "@/lib/mongodb";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { requireStudentFromRequest } from "@/lib/auth/require-student";
-import {
-  findStudentByEmail,
-  findStudentById,
-  toProfileDto,
-  updateStudentProfile,
-} from "@/lib/student-portal";
+import { findStudentById, toProfileDto, updateStudentProfile } from "@/lib/student-portal";
 
 export const runtime = "nodejs";
 
@@ -30,10 +25,7 @@ export async function GET(request: NextRequest) {
 
     await dbConnect();
 
-    let student = await findStudentById(auth.student.id);
-    if (!student) {
-      student = await findStudentByEmail(auth.student.email);
-    }
+    const student = await findStudentById(auth.student.id);
     if (!student) {
       return apiError("Student not found in students collection", 404);
     }
@@ -58,11 +50,7 @@ export async function PUT(request: NextRequest) {
 
     await dbConnect();
 
-    const student = await updateStudentProfile(
-      auth.student.id,
-      auth.student.email,
-      parsed.data,
-    );
+    const student = await updateStudentProfile(auth.student.id, "", parsed.data);
 
     if (!student) {
       return apiError(

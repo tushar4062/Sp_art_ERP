@@ -3,10 +3,9 @@ import { z } from "zod";
 import dbConnect from "@/lib/mongodb";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import {
-  STUDENT_COOKIE,
-  signStudentToken,
-  studentCookieOptions,
-} from "@/lib/auth/student-jwt";
+  STUDENT_SESSION_COOKIE,
+  portalSessionCookieOptions,
+} from "@/lib/auth/portal-session";
 import { authenticateStudentLogin, findStudentByEmail } from "@/lib/student-portal";
 
 export const runtime = "nodejs";
@@ -42,12 +41,6 @@ export async function POST(request: NextRequest) {
       return apiError("Invalid password", 401);
     }
 
-    const token = await signStudentToken({
-      id: student._id.toString(),
-      email: student.email ?? email,
-      role: "student",
-    });
-
     const response = apiSuccess({
       user: {
         name: student.fullName,
@@ -56,11 +49,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    response.cookies.set(STUDENT_COOKIE, token, studentCookieOptions());
+    response.cookies.set(
+      STUDENT_SESSION_COOKIE,
+      student._id.toString(),
+      portalSessionCookieOptions(),
+    );
     return response;
   } catch (error) {
     console.error("[student/login]", error);
-    const message = error instanceof Error ? error.message : "Login failed";
-    return apiError(message.includes("JWT_SECRET") ? message : "Login failed", 500);
+    return apiError("Login failed", 500);
   }
 }
