@@ -7,7 +7,7 @@ type User = { name: string; role: Role; email: string };
 
 type AuthCtx = {
   user: User | null;
-  login: (role: Role, email: string) => void;
+  login: (role: Role, email: string, name?: string) => void;
   logout: () => void;
 };
 
@@ -43,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<AuthCtx>(() => ({
     user,
-    login: (role, email) => setUser({ role, email, name: ROLE_NAMES[role] }),
+    login: (role, email, name) => setUser({ role, email, name: name ?? ROLE_NAMES[role] }),
     logout: () => setUser(null),
   }), [user]);
 
