@@ -280,12 +280,6 @@ export default function SeniorTeachersPage() {
       <PageHeader
         title="Senior Teachers"
         subtitle={`${teachers.length} senior art instructors`}
-        action={
-          <Button onClick={openAddTeacher} className="rounded-xl gradient-primary text-white border-0 shadow-pop">
-            <Plus className="w-4 h-4 mr-1" />
-            Add Senior Teacher
-          </Button>
-        }
       />
 
       <div className="card-soft p-4 flex flex-col sm:flex-row gap-3">

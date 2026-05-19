@@ -321,12 +321,6 @@ export default function StudentsPage() {
       <PageHeader
         title="Students"
         subtitle={`${students.length} kids learning art with us`}
-        action={
-          <Button onClick={openAddStudent} className="rounded-xl gradient-primary text-white border-0 shadow-pop">
-            <Plus className="w-4 h-4 mr-1" />
-            Add Student
-          </Button>
-        }
       />
 
       <div className="card-soft p-4 flex flex-col sm:flex-row gap-3">

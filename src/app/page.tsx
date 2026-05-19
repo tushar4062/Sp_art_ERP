@@ -6,15 +6,17 @@ import { useEffect } from "react";
 
 export default function Home() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, hydrated } = useAuth();
 
   useEffect(() => {
+    if (!hydrated) return;
+
     if (user) {
       router.push(roleHome(user.role));
     } else {
       router.push("/login");
     }
-  }, [user, router]);
+  }, [user, hydrated, router]);
 
   return (
     <div className="flex items-center justify-center min-h-screen">

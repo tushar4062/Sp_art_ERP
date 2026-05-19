@@ -7,6 +7,7 @@ type User = { name: string; role: Role; email: string };
 
 type AuthCtx = {
   user: User | null;
+  hydrated: boolean;
   login: (role: Role, email: string, name?: string) => void;
   logout: () => void;
 };
@@ -47,9 +48,11 @@ function readStoredUser(): User | null {
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     setUser(readStoredUser());
+    setHydrated(true);
   }, []);
 
   useEffect(() => {
@@ -61,11 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo<AuthCtx>(
     () => ({
       user,
+      hydrated,
       login: (role, email, name) =>
         setUser({ role, email, name: name ?? ROLE_NAMES[role] }),
       logout: () => setUser(null),
     }),
-    [user],
+    [user, hydrated],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
@@ -76,6 +80,7 @@ export function useAuth() {
   if (!v) {
     return {
       user: null,
+      hydrated: false,
       login: () => {},
       logout: () => {},
     };

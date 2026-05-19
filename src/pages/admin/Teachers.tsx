@@ -301,12 +301,6 @@ export default function TeachersPage() {
       <PageHeader
         title="Teachers"
         subtitle={`${teachers.length} talented art instructors`}
-        action={
-          <Button className="rounded-xl bg-primary text-white shadow-sm" onClick={openAddTeacher}>
-            <Plus className="w-4 h-4" />
-            Add Teacher
-          </Button>
-        }
       />
 
       <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">

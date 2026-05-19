@@ -184,12 +184,14 @@ export function RoleLayout({ navItems, role, children }: { navItems: NavItem[]; 
 }
 
 export function RequireRole({ role, children }: { role: Role; children: ReactNode }) {
-  const { user } = useAuth();
+  const { user, hydrated } = useAuth();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+    if (!hydrated) return;
+
     if (!user) {
       router.push("/login");
       return;
@@ -198,9 +200,9 @@ export function RequireRole({ role, children }: { role: Role; children: ReactNod
     if (user.role !== role) {
       router.push(user.role === "student" ? "/student/dashboard" : `/${user.role}`);
     }
-  }, [user, role, router]);
+  }, [user, role, router, hydrated]);
 
-  if (!mounted || !user) {
+  if (!mounted || !hydrated || !user) {
     return null;
   }
 
