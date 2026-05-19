@@ -3,7 +3,12 @@ import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
 import Credential from '@/lib/models/Credentials';
 import Teacher from '@/lib/models/Teacher';
-import { TEACHER_SESSION_COOKIE, portalSessionCookieOptions } from '@/lib/auth/portal-session';
+import SeniorTeacher from '@/lib/models/SeniorTeacher';
+import {
+  SENIOR_TEACHER_SESSION_COOKIE,
+  TEACHER_SESSION_COOKIE,
+  portalSessionCookieOptions,
+} from '@/lib/auth/portal-session';
 
 export const runtime = 'nodejs';
 
@@ -70,6 +75,33 @@ export async function POST(request: NextRequest) {
         },
       });
       res.cookies.set(TEACHER_SESSION_COOKIE, teacher._id.toString(), portalSessionCookieOptions());
+      return res;
+    }
+
+    if (expectedRole === 'senior_teacher') {
+      const emailNorm = credential.email.toLowerCase().trim();
+      const esc = emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const senior = await SeniorTeacher.findOne({
+        email: { $regex: new RegExp(`^${esc}$`, 'i') },
+      });
+      if (!senior) {
+        return NextResponse.json(
+          {
+            error:
+              'No senior teacher record found for this email. Ask admin to add you under Senior Teachers with the same email as your login.',
+          },
+          { status: 404 },
+        );
+      }
+
+      const res = NextResponse.json({
+        user: {
+          email: credential.email,
+          name: credential.name,
+          role,
+        },
+      });
+      res.cookies.set(SENIOR_TEACHER_SESSION_COOKIE, senior._id.toString(), portalSessionCookieOptions());
       return res;
     }
 

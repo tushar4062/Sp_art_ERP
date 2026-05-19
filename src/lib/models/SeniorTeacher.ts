@@ -18,6 +18,8 @@ export interface SeniorTeacherDocument extends mongoose.Document {
   salary: number;
   bio?: string;
   profileImage?: string;
+  courseName?: string;
+  branchName?: string;
   status: 'Active' | 'Inactive';
   assignedClasses: number;
   createdAt: Date;
@@ -46,10 +48,13 @@ const SeniorTeacherSchema = new mongoose.Schema<SeniorTeacherDocument>({
   salary: { type: Number, required: true, default: 0 },
   bio: { type: String },
   profileImage: { type: String },
+  courseName: { type: String },
+  branchName: { type: String },
   status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
   assignedClasses: { type: Number, default: 0 },
 }, {
   timestamps: true,
+  collection: 'seniorteachers',
 });
 
 const SeniorTeacherModel = mongoose.models.SeniorTeacher as mongoose.Model<SeniorTeacherDocument>;

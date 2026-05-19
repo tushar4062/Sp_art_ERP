@@ -47,6 +47,13 @@ export function RoleLayout({ navItems, role, children }: { navItems: NavItem[]; 
         /* clear client session anyway */
       }
     }
+    if (role === "senior-teacher") {
+      try {
+        await fetch("/api/senior-teacher/logout", { method: "POST", credentials: "include" });
+      } catch {
+        /* clear client session anyway */
+      }
+    }
     logout();
     router.push("/login");
   };
@@ -171,6 +178,16 @@ export function RoleLayout({ navItems, role, children }: { navItems: NavItem[]; 
                     <>
                       <DropdownMenuItem asChild>
                         <Link href="/teacher/profile" className="cursor-pointer">
+                          <User className="mr-2 h-4 w-4" />
+                          Profile
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                    </>
+                  ) : role === "senior-teacher" ? (
+                    <>
+                      <DropdownMenuItem asChild>
+                        <Link href="/senior-teacher/profile" className="cursor-pointer">
                           <User className="mr-2 h-4 w-4" />
                           Profile
                         </Link>
