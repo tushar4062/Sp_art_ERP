@@ -2,46 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { z } from "zod";
 import dbConnect from "@/lib/mongodb";
-import Student, { type StudentDocument } from "@/lib/models/Student";
+import Student from "@/lib/models/Student";
 import SeniorTeacher from "@/lib/models/SeniorTeacher";
 import { requireSeniorTeacherFromRequest } from "@/lib/auth/require-senior-teacher";
+import { toStudentJson } from "@/lib/serializers/studentSerialize";
 
 export const runtime = "nodejs";
-
-function formatDate(value: Date | string | undefined): string {
-  if (!value) return "";
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toISOString().slice(0, 10);
-}
-
-function studentStatus(doc: StudentDocument): "Active" | "Inactive" {
-  return doc.feeStatus === "Paid" ? "Active" : "Inactive";
-}
-
-function toStudentJson(doc: StudentDocument) {
-  return {
-    id: doc._id.toString(),
-    fullName: doc.fullName,
-    email: doc.email ?? "",
-    phone: doc.phone ?? "",
-    gender: doc.gender ?? "",
-    age: doc.age ?? null,
-    course: doc.currentCourse ?? "",
-    className: doc.className,
-    parentName: doc.parentName ?? doc.fatherName ?? "",
-    parentContact: doc.fatherMobile ?? doc.motherMobile ?? doc.phone ?? "",
-    address: doc.address ?? "",
-    profileImage: doc.photo ?? "",
-    status: studentStatus(doc),
-    feeStatus: doc.feeStatus,
-    attendancePercentage: 0,
-    joiningDate: formatDate(doc.createdAt),
-    artTeacher: doc.artTeacher ?? "",
-    createdAt: doc.createdAt.toISOString(),
-    updatedAt: doc.updatedAt.toISOString(),
-  };
-}
 
 const updateSchema = z.object({
   fullName: z.string().trim().min(2).optional(),
@@ -59,6 +25,10 @@ const updateSchema = z.object({
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+function studentScope(studentId: string) {
+  return { _id: new mongoose.Types.ObjectId(studentId) };
+}
+
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const auth = await requireSeniorTeacherFromRequest(request);
@@ -75,9 +45,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: "Senior teacher not found" }, { status: 404 });
     }
 
-    const student = await Student.findById(id);
+    const student = await Student.findOne(studentScope(id));
     if (!student) {
-      return NextResponse.json({ success: false, error: "Student not found in students collection" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Student not found" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true, data: { student: toStudentJson(student) } });
@@ -112,7 +82,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: "Senior teacher not found" }, { status: 404 });
     }
 
-    const student = await Student.findById(id);
+    const student = await Student.findOne(studentScope(id));
     if (!student) {
       return NextResponse.json({ success: false, error: "Student not found" }, { status: 404 });
     }
@@ -131,13 +101,16 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (data.status !== undefined) {
       student.feeStatus = data.status === "Active" ? "Paid" : "Pending";
     }
+    if (!student.createdBy) {
+      student.createdBy = new mongoose.Types.ObjectId(auth.seniorTeacher.id);
+    }
 
     await student.save();
 
     return NextResponse.json({
       success: true,
       data: { student: toStudentJson(student) },
-      message: "Student updated in students collection",
+      message: "Student updated",
     });
   } catch (error) {
     console.error("[senior-teacher/students/[id] PUT]", error);

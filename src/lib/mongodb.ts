@@ -68,6 +68,9 @@ async function dbConnect() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
+      serverSelectionTimeoutMS: 20000,
+      connectTimeoutMS: 20000,
+      maxPoolSize: 10,
     };
 
     cached.promise = getConnectionUri()

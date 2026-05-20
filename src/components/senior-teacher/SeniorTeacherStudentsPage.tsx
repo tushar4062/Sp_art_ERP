@@ -13,6 +13,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
+import { parseJsonResponse } from "@/lib/api/parseJsonResponse";
 
 export type SeniorTeacherStudentItem = {
   id: string;
@@ -148,12 +149,20 @@ export function SeniorTeacherStudentsPage() {
         gender: filterGender,
       });
       const res = await fetch(`/api/senior-teacher/students?${params}`, { credentials: "include" });
-      const json = await res.json();
+      const json = await parseJsonResponse<{
+        error?: string;
+        data?: {
+          students: SeniorTeacherStudentItem[];
+          pagination: Pagination;
+          filterOptions?: { classes?: string[]; courses?: string[] };
+        };
+      }>(res);
       if (res.status === 401) {
         router.push("/login");
         return;
       }
       if (!res.ok) throw new Error(json.error || "Failed to load students");
+      if (!json.data?.students) throw new Error("Invalid students response from server");
       setStudents(json.data.students);
       setPagination(json.data.pagination);
       setClassOptions(json.data.filterOptions?.classes ?? []);
@@ -177,7 +186,7 @@ export function SeniorTeacherStudentsPage() {
     setForm(null);
     try {
       const res = await fetch(`/api/senior-teacher/students/${id}`, { credentials: "include" });
-      const json = await res.json();
+      const json = await parseJsonResponse<{ error?: string; data?: { student: SeniorTeacherStudentItem } }>(res);
       if (res.status === 401) {
         router.push("/login");
         return;
@@ -215,7 +224,11 @@ export function SeniorTeacherStudentsPage() {
           status: form.status,
         }),
       });
-      const json = await res.json();
+      const json = await parseJsonResponse<{
+        error?: string;
+        message?: string;
+        data?: { student: SeniorTeacherStudentItem };
+      }>(res);
       if (res.status === 401) {
         router.push("/login");
         return;

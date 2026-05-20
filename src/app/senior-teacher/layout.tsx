@@ -2,13 +2,15 @@
 
 import { ReactNode } from "react";
 import {
-  LayoutDashboard, ClipboardCheck, CalendarOff, Palette, CalendarDays, MessageSquare, TrendingUp, ClipboardList, User, UserPlus
+  LayoutDashboard, ClipboardCheck, CalendarOff, Palette, CalendarDays, MessageSquare, TrendingUp, ClipboardList, User, UserPlus, GraduationCap, Users,
 } from "lucide-react";
 import { RoleLayout, NavItem } from "@/components/layouts/RoleLayout";
 import { RequireRole } from "@/components/layouts/RoleLayout";
 
 const seniorNav: NavItem[] = [
   { to: "/senior-teacher", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/senior-teacher/students", label: "Students", icon: Users },
+  { to: "/senior-teacher/teachers", label: "Teachers", icon: GraduationCap },
   { to: "/senior-teacher/classes", label: "My Classes", icon: CalendarDays },
   { to: "/senior-teacher/admission", label: "Admission", icon: UserPlus },
   { to: "/senior-teacher/attendance", label: "Attendance", icon: ClipboardCheck },
