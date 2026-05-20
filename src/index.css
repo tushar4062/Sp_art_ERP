@@ -147,3 +147,21 @@
   .scrollbar-thin::-webkit-scrollbar { height: 6px; width: 6px; }
   .scrollbar-thin::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / 0.3); border-radius: 999px; }
 }
+
+/* Neutralize browser autofill yellow/orange styling */
+input:-webkit-autofill,
+textarea:-webkit-autofill,
+select:-webkit-autofill {
+  -webkit-box-shadow: 0 0 0px 1000px hsl(var(--card)) inset !important;
+  box-shadow: 0 0 0px 1000px hsl(var(--card)) inset !important;
+  -webkit-text-fill-color: hsl(var(--card-foreground)) !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Also when autofill is active on focus */
+input:-webkit-autofill:focus,
+textarea:-webkit-autofill:focus,
+select:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0px 1000px hsl(var(--card)) inset !important;
+  box-shadow: 0 0 0px 1000px hsl(var(--card)) inset !important;
+}

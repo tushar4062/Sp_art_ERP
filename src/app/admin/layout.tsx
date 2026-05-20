@@ -3,13 +3,14 @@
 import { ReactNode } from "react";
 import {
   LayoutDashboard, Users, GraduationCap, ClipboardCheck, TrendingUp,
-  Sparkles, Wallet, Boxes, CreditCard, Award, Bell, MessageSquareHeart, MessageSquare, Shield
+  Sparkles, Wallet, Boxes, CreditCard, Award, Bell, MessageSquareHeart, MessageSquare, Shield, UserPlus
 } from "lucide-react";
 import { RoleLayout, NavItem } from "@/components/layouts/RoleLayout";
 import { RequireRole } from "@/components/layouts/RoleLayout";
 
 const adminNav: NavItem[] = [
   { to: "/admin", label: "Dashboard", icon: LayoutDashboard, end: true },
+  { to: "/admin/admission", label: "Admission", icon: UserPlus },
   { to: "/admin/credentials", label: "Credentials", icon: Shield },
   { to: "/admin/students", label: "Students", icon: Users },
   { to: "/admin/teachers", label: "Teachers", icon: GraduationCap },

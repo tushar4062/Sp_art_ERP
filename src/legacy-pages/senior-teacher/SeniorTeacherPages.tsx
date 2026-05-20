@@ -1,11 +1,15 @@
 "use client";
-import { useState } from "react";
-import { ClipboardCheck, CalendarOff, CalendarDays, Users, Check, X } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { ClipboardCheck, CalendarOff, CalendarDays, Users, Check, X, Plus } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
 import { StatusPill } from "@/components/shared/StatusPill";
 import { Avatar } from "@/components/shared/Avatar";
 import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger, SheetFooter } from "@/components/ui/sheet";
+import AdmissionForm from "@/components/senior-teacher/AdmissionForm";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { todaysClasses } from "@/data/mockData";
 import { useStore, actions } from "@/store/dataStore";
@@ -134,6 +138,121 @@ export function MyClasses() {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+interface AdmissionItem {
+  _id: string;
+  fullName: string;
+  className?: string;
+  email?: string;
+  mobile?: string;
+  parentName?: string;
+  parentMobile?: string;
+  address?: string;
+  admissionDate?: string;
+  notes?: string;
+  amountPaid?: number;
+  remainingAmount?: number;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function Admission() {
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState<AdmissionItem[]>([]);
+
+  const fetchItems = async () => {
+    try {
+      const res = await fetch('/api/student-admissions');
+      const data = await res.json();
+      if (data?.success) setItems(data.items || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  useEffect(() => { fetchItems(); }, []);
+
+  return (
+    <div className="space-y-6">
+      <PageHeader title="Admission" subtitle="Manage new student admissions" action={
+        <div className="flex items-center gap-2">
+          <Button className="rounded-xl gradient-primary text-white border-0 shadow-pop" onClick={() => setOpen(true)}><Plus className="w-4 h-4 mr-1" />New Admission</Button>
+        </div>
+      } />
+
+      <div className="mt-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between mb-3">
+          <div>
+            <h3 className="text-lg font-semibold">Admissions</h3>
+            <p className="text-sm text-muted-foreground">Recent students with course and payment details.</p>
+          </div>
+          <div className="text-sm text-muted-foreground">{items.length} admission(s)</div>
+        </div>
+
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-sm">
+          <Table>
+            <TableHeader className="bg-muted">
+              <TableRow>
+                <TableHead className="px-4 py-4 text-left">Student Name</TableHead>
+                <TableHead className="px-4 py-4 text-left">Course / Class</TableHead>
+                <TableHead className="px-4 py-4 text-left">Amount Paid</TableHead>
+                <TableHead className="px-4 py-4 text-left">Remaining Amount</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody className="divide-y divide-border/70">
+              {items.length === 0 ? (
+                <TableRow className="border-0">
+                  <TableCell colSpan={4} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                    No admissions found. Add a student and the record will appear here.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                items.map(it => (
+                  <TableRow key={it._id} className="border-0 hover:bg-muted/60 transition-colors">
+                    <TableCell className="px-4 py-4">
+                      <div className="font-semibold">{it.fullName}</div>
+                      <div className="text-xs text-muted-foreground">{it.email || 'No email'}</div>
+                    </TableCell>
+                    <TableCell className="px-4 py-4">
+                      <div>{it.className || 'Not assigned'}</div>
+                    </TableCell>
+                    <TableCell className="px-4 py-4">
+                      ₹{Number(it.amountPaid ?? 0).toLocaleString('en-IN')}
+                    </TableCell>
+                    <TableCell className="px-4 py-4">
+                      ₹{Number(it.remainingAmount ?? 0).toLocaleString('en-IN')}
+                    </TableCell>
+                  </TableRow>
+                ))
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </div>
+
+      <Sheet open={open} onOpenChange={setOpen}>
+        <SheetContent side="right" className="w-full sm:max-w-[820px] h-screen">
+          <div className="flex flex-col h-full">
+            <SheetHeader>
+              <SheetTitle>New Admission</SheetTitle>
+            </SheetHeader>
+            <div className="px-4 py-4 flex-1 overflow-y-auto">
+              <div className="pr-4 pb-28 pt-2">
+                <AdmissionForm formId="admission-form" onClose={() => setOpen(false)} onSuccess={(item) => setItems(curr => [item, ...curr])} />
+              </div>
+            </div>
+
+            <div className="sticky bottom-0 bg-background/90 backdrop-blur border-t border-border p-3 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={() => (document.getElementById('admission-form') as HTMLFormElement | null)?.requestSubmit()} className="rounded-xl gradient-primary text-white border-0 shadow-pop">Submit Admission</Button>
+            </div>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
