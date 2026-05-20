@@ -82,6 +82,10 @@ export default function AdminCredentialsPage() {
     setLoading(true);
     try {
       const response = await fetch(`/api/credentials?role=${role}`);
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error((errBody as { error?: string }).error || `Server error (${response.status})`);
+      }
       const result = await response.json();
       setRows(result.credentials ?? []);
     } catch (error) {
