@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import Teacher, { type TeacherDocument } from "@/lib/models/Teacher";
+import SeniorTeacher, { type SeniorTeacherDocument } from "@/lib/models/SeniorTeacher";
 import { requireSeniorTeacherFromRequest } from "@/lib/auth/require-senior-teacher";
 import { getBatchAccess } from "@/lib/auth/require-batch-access";
 import {
@@ -22,19 +23,41 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ success: false, error: "Unauthorized" }, { status: 401 });
       }
       await dbConnect();
-      const teachers = await Teacher.find({ isSenior: { $ne: true }, status: "Active" })
-        .select("fullName email")
-        .sort({ fullName: 1 })
-        .limit(500)
-        .lean();
+
+      // Fetch both regular teachers and senior teachers
+      const [teachers, seniorTeachers] = await Promise.all([
+        Teacher.find({ status: "Active" })
+          .select("fullName email isSenior")
+          .sort({ fullName: 1 })
+          .limit(250)
+          .lean(),
+        SeniorTeacher.find({ status: "Active" })
+          .select("fullName email")
+          .sort({ fullName: 1 })
+          .limit(250)
+          .lean(),
+      ]);
+
+      // Combine and map both collections
+      const allTeachers = [
+        ...teachers.map(t => ({
+          id: t._id.toString(),
+          fullName: t.fullName,
+          email: t.email,
+          isSenior: t.isSenior || false,
+        })),
+        ...seniorTeachers.map(st => ({
+          id: st._id.toString(),
+          fullName: st.fullName,
+          email: st.email,
+          isSenior: true,
+        })),
+      ].sort((a, b) => a.fullName.localeCompare(b.fullName));
+
       return NextResponse.json({
         success: true,
         data: {
-          teachers: teachers.map(t => ({
-            id: t._id.toString(),
-            fullName: t.fullName,
-            email: t.email,
-          })),
+          teachers: allTeachers,
         },
       });
     }

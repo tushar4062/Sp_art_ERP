@@ -15,20 +15,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { batchWriteSchema, type BatchWriteInput, BATCH_DAY_OPTIONS, COURSE_OPTIONS } from "@/lib/validators/batch";
 import type { SerializedBatch } from "@/lib/batch/types";
 import { batchFetch } from "@/lib/batch/batchFetch";
 import { useBatchRoutes } from "@/lib/batch/useBatchRoutes";
 import { messageFromUnknown } from "@/lib/errors/messageFromUnknown";
 
-type TeacherBrief = { id: string; fullName: string; email: string };
+type TeacherBrief = { id: string; fullName: string; email: string; isSenior?: boolean };
 
 const emptyDefaults: BatchWriteInput = {
   batchName: "",
@@ -74,16 +68,9 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
   const routes = useBatchRoutes();
   const [teacherList, setTeacherList] = useState<TeacherBrief[]>([]);
   const [studentModal, setStudentModal] = useState(false);
-  const [draft, setDraft] = useState({
-    studentName: "",
-    studentEmail: "",
-    phone: "",
-    course: "",
-    batchDay: "",
-    batchTime: "",
-    startMonth: "",
-    endMonth: "",
-  });
+  const [studentList, setStudentList] = useState<Array<{ id: string; name?: string; fullName?: string; email?: string; badgeId?: string; phone?: string; currentCourse?: string; batchDays?: string; batchTime?: string }>>([]);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
 
   const form = useForm<BatchWriteInput>({
@@ -134,32 +121,67 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
   };
 
   const addDraftStudent = () => {
-    if (!draft.studentName.trim()) {
-      toast.error("Student name is required");
+    // Deprecated: kept for backwards compatibility
+    toast.error("Please select students from the database instead.");
+  };
+
+  // Fetch students when modal opens
+  useEffect(() => {
+    if (!studentModal) return;
+    (async () => {
+      try {
+        const res = await fetch(`/api/students`);
+        const json: { students?: Array<{ id: string; name?: string; fullName?: string; email?: string; badgeId?: string; phone?: string; currentCourse?: string; batchDays?: string; batchTime?: string }> } = await res.json();
+        if (res.ok && Array.isArray(json.students)) setStudentList(json.students);
+      } catch (e) {
+        /* ignore */
+      }
+    })();
+  }, [studentModal]);
+
+  const filteredStudents = studentList.filter(s => {
+    if (!studentSearch) return true;
+    const q = studentSearch.toLowerCase();
+    return (s.name || "").toLowerCase().includes(q) || (s.email || "").toLowerCase().includes(q) || (s.badgeId || "").toLowerCase().includes(q);
+  });
+
+  const addSelectedStudents = () => {
+    if (!selectedStudentIds || selectedStudentIds.length === 0) {
+      toast.error("Please select one or more students to add");
       return;
     }
-    append({
-      studentName: draft.studentName.trim(),
-      studentEmail: draft.studentEmail.trim(),
-      phone: draft.phone.trim(),
-      course: draft.course.trim(),
-      batchDay: draft.batchDay.trim(),
-      batchTime: draft.batchTime.trim(),
-      startMonth: draft.startMonth.trim(),
-      endMonth: draft.endMonth.trim(),
-    });
-    setDraft({
-      studentName: "",
-      studentEmail: "",
-      phone: "",
-      course: "",
-      batchDay: "",
-      batchTime: "",
-      startMonth: "",
-      endMonth: "",
-    });
+    const existing = form.getValues('students') || [];
+    let added = 0;
+    let skipped = 0;
+    for (const sid of selectedStudentIds) {
+      const s = studentList.find((x) => x.id === sid);
+      if (!s) {
+        skipped++;
+        continue;
+      }
+      const duplicate = existing.some((e) => {
+        return (e.studentEmail && s.email && e.studentEmail.toLowerCase() === s.email.toLowerCase()) || (e.studentName && s.name && e.studentName === s.name);
+      });
+      if (duplicate) {
+        skipped++;
+        continue;
+      }
+      append({
+        studentName: s.name || s.fullName || "",
+        studentEmail: s.email || "",
+        phone: s.phone || "",
+        course: s.currentCourse || "",
+        batchDay: s.batchDays || "",
+        batchTime: s.batchTime || "",
+        startMonth: "",
+        endMonth: "",
+      });
+      added++;
+    }
+    setSelectedStudentIds([]);
     setStudentModal(false);
-    toast.success("Student added to roster");
+    if (added > 0) toast.success(`${added} student(s) added${skipped>0?`, ${skipped} skipped`:''}`);
+    else toast.error(skipped>0? 'No new students were added (duplicates skipped)' : 'No students added');
   };
 
   const onSubmit = async (data: BatchWriteInput) => {
@@ -353,8 +375,12 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
               {teacherList.map(t => (
                 <label key={t.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-50 cursor-pointer">
                   <Checkbox checked={teacherIds.includes(t.id)} onCheckedChange={() => toggleTeacher(t.id)} />
-                  <span className="text-sm">
-                    <span className="font-medium">{t.fullName}</span>
+                  <span className="text-sm flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium">{t.fullName}</span>
+                      {t.isSenior && <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-800 px-2 py-0.5 text-xs font-medium">Senior Teacher</span>}
+                      {!t.isSenior && <span className="inline-flex items-center rounded-full bg-blue-100 text-blue-800 px-2 py-0.5 text-xs font-medium">Teacher</span>}
+                    </div>
                     <span className="text-muted-foreground block text-xs">{t.email}</span>
                   </span>
                 </label>
@@ -373,59 +399,61 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
         </div>
       </form>
 
-      <Dialog open={studentModal} onOpenChange={setStudentModal}>
-        <DialogContent className="rounded-2xl sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Add student to roster</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-3 py-2">
-            <div className="space-y-2">
-              <Label>Student name</Label>
-              <Input className="rounded-xl" value={draft.studentName} onChange={e => setDraft({ ...draft, studentName: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Student email</Label>
-              <Input className="rounded-xl" value={draft.studentEmail} onChange={e => setDraft({ ...draft, studentEmail: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Phone number</Label>
-              <Input className="rounded-xl" value={draft.phone} onChange={e => setDraft({ ...draft, phone: e.target.value })} />
-            </div>
-            <div className="space-y-2">
-              <Label>Course</Label>
-              <Input className="rounded-xl" value={draft.course} onChange={e => setDraft({ ...draft, course: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-2">
-                <Label>Batch day</Label>
-                <Input className="rounded-xl" value={draft.batchDay} onChange={e => setDraft({ ...draft, batchDay: e.target.value })} />
+      <Sheet open={studentModal} onOpenChange={setStudentModal}>
+        <SheetContent side="right" className="w-full sm:max-w-[820px] h-screen">
+          <div className="flex flex-col h-full">
+            <SheetHeader>
+              <SheetTitle>Add student to roster</SheetTitle>
+            </SheetHeader>
+
+            <div className="px-4 py-4 flex-1 overflow-y-auto">
+              <div className="grid gap-3">
+                <div>
+                  <Label>Search students</Label>
+                  <Input className="rounded-xl" placeholder="Search by name, email or id" value={studentSearch} onChange={e => setStudentSearch(e.target.value)} />
+                </div>
+
+                <div className="h-56 overflow-auto rounded-lg border border-slate-100">
+                  {filteredStudents.length === 0 ? (
+                    <div className="p-4 text-sm text-muted-foreground">No students found.</div>
+                  ) : (
+                    <ul className="p-2 space-y-1">
+                      {filteredStudents.map(s => {
+                        const checked = selectedStudentIds.includes(s.id);
+                        return (
+                          <label key={s.id} className={`flex items-center justify-between gap-3 rounded-md px-3 py-2 hover:bg-slate-50 cursor-pointer ${checked ? 'bg-primary/10' : ''}`}>
+                            <div className="flex items-center gap-3">
+                              <Checkbox checked={checked} onCheckedChange={(v) => {
+                                const isChecked = Boolean(v);
+                                if (isChecked) setSelectedStudentIds(prev => prev.includes(s.id) ? prev : [...prev, s.id]);
+                                else setSelectedStudentIds(prev => prev.filter(id => id !== s.id));
+                              }} />
+                              <div>
+                                <div className="font-medium">{s.name}</div>
+                                <div className="text-xs text-muted-foreground">{s.email}</div>
+                              </div>
+                            </div>
+                            <div className="text-sm text-muted-foreground">{s.badgeId}</div>
+                          </label>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label>Batch time</Label>
-                <Input className="rounded-xl" value={draft.batchTime} onChange={e => setDraft({ ...draft, batchTime: e.target.value })} />
-              </div>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              <div className="space-y-2">
-                <Label>Start month</Label>
-                <Input type="month" className="rounded-xl" value={draft.startMonth} onChange={e => setDraft({ ...draft, startMonth: e.target.value })} />
-              </div>
-              <div className="space-y-2">
-                <Label>End month</Label>
-                <Input type="month" className="rounded-xl" value={draft.endMonth} onChange={e => setDraft({ ...draft, endMonth: e.target.value })} />
-              </div>
+
+            <div className="sticky bottom-0 bg-background/90 backdrop-blur border-t border-border p-3 flex justify-end gap-2">
+              <Button type="button" variant="outline" className="rounded-xl" onClick={() => setStudentModal(false)}>
+                Close
+              </Button>
+              <Button type="button" className="rounded-xl" onClick={addSelectedStudents}>
+                Add to batch
+              </Button>
             </div>
           </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" className="rounded-xl" onClick={() => setStudentModal(false)}>
-              Close
-            </Button>
-            <Button type="button" className="rounded-xl" onClick={addDraftStudent}>
-              Add to batch
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

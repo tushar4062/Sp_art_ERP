@@ -1,4 +1,4 @@
-export type SerializedTeacherMini = { id: string; fullName: string; email: string };
+export type SerializedTeacherMini = { id: string; fullName: string; email: string; isSenior?: boolean };
 
 export type SerializedBatchStudent = {
   id: string;

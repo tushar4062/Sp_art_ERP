@@ -87,6 +87,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       })),
     );
 
+    await batch.save();
+
     const populated = await Batch.findById(batch._id).populate("teacherIds", "fullName email phone");
     return NextResponse.json({
       success: true,

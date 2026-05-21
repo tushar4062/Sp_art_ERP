@@ -16,6 +16,7 @@ import { todaysClasses, CLASSES } from "@/data/mockData";
 import { useStore, actions } from "@/store/dataStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { TeacherAttendancePage } from "@/components/teacher/TeacherAttendancePage";
 export { ChatPage } from "@/pages/senior-teacher/SeniorTeacherPages";
 
 export function TeacherDashboard() {
@@ -81,37 +82,7 @@ export function TeacherSlotRequests() {
 }
 
 export function TeacherAttendance() {
-  const students = useStore(s => s.students);
-  const [marks, setMarks] = useState<Record<string, "Present"|"Absent"|"Late">>(() => Object.fromEntries(students.slice(0, 10).map(s => [s.id, "Present"])));
-  return (
-    <div className="space-y-6">
-      <PageHeader title="Mark Attendance" subtitle="Today's class roster" action={
-        <Select defaultValue={CLASSES[0]}><SelectTrigger className="rounded-xl w-48"><SelectValue /></SelectTrigger>
-          <SelectContent>{CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-        </Select>
-      } />
-      <div className="card-soft divide-y divide-border/60">
-        {students.slice(0, 10).map(s => (
-          <div key={s.id} className="p-3 flex items-center gap-4">
-            <Avatar name={s.name} />
-            <div className="flex-1 min-w-0"><div className="font-bold truncate">{s.name}</div><div className="text-xs text-muted-foreground font-mono">{s.badgeId}</div></div>
-            <div className="flex gap-1.5">
-              {(["Present","Late","Absent"] as const).map(st => (
-                <button key={st} onClick={() => setMarks(m => ({...m, [s.id]: st}))} className={cn("text-xs font-bold rounded-lg px-2.5 py-1.5 border",
-                  marks[s.id] === st
-                    ? st === "Present" ? "bg-success text-success-foreground border-transparent"
-                    : st === "Late" ? "bg-warning text-warning-foreground border-transparent"
-                    : "bg-destructive text-destructive-foreground border-transparent"
-                    : "bg-card border-border text-muted-foreground hover:bg-muted"
-                )}>{st}</button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="flex justify-end"><Button className="rounded-xl gradient-primary text-white border-0 shadow-pop" onClick={() => toast.success("Submitted!")}>Submit attendance</Button></div>
-    </div>
-  );
+  return <TeacherAttendancePage />;
 }
 
 export function TeacherLeave() {
