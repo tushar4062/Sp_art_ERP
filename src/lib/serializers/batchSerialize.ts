@@ -36,22 +36,35 @@ export function serializeBatch(doc: BatchDocument) {
     teacherIds = (doc.teacherIds as mongoose.Types.ObjectId[]).map(id => id.toString());
   }
 
+  const batchTiming =
+    doc.batchTiming || (doc.batchDay && doc.batchTime ? `${doc.batchDay} · ${doc.batchTime}` : "");
+
   return {
     id: doc._id.toString(),
     batchName: doc.batchName,
+    batchCode: doc.batchCode ?? "",
     courseName: doc.courseName,
+    batchTiming,
     batchDay: doc.batchDay,
     batchTime: doc.batchTime,
+    startDate: doc.startDate ?? doc.startMonth,
+    endDate: doc.endDate ?? doc.endMonth,
     startMonth: doc.startMonth,
     endMonth: doc.endMonth,
+    roomNumber: doc.roomNumber ?? doc.branch ?? "",
     branch: doc.branch,
+    maxStudents: doc.maxStudents ?? doc.batchCapacity,
     batchCapacity: doc.batchCapacity,
+    batchStatus: doc.batchStatus ?? "Active",
     description: doc.description,
     students: doc.students.map(serializeStudent),
+    assignedStudents: doc.students.map(serializeStudent),
     teacherIds,
+    assignedTeachers: teacherIds,
     teachers,
     totalStudents: doc.students.length,
     attendanceSummary: doc.attendanceSummary,
+    createdBy: doc.createdBy?.toString() ?? "",
     createdAt: doc.createdAt.toISOString(),
     updatedAt: doc.updatedAt.toISOString(),
   };

@@ -15,16 +15,25 @@ export type SerializedBatchStudent = {
 export type SerializedBatch = {
   id: string;
   batchName: string;
+  batchCode: string;
   courseName: string;
+  batchTiming: string;
   batchDay: string;
   batchTime: string;
+  startDate: string;
+  endDate: string;
   startMonth: string;
   endMonth: string;
+  roomNumber: string;
   branch: string;
+  maxStudents: number;
   batchCapacity: number;
+  batchStatus: string;
   description: string;
   students: SerializedBatchStudent[];
+  assignedStudents: SerializedBatchStudent[];
   teacherIds: string[];
+  assignedTeachers: string[];
   teachers?: SerializedTeacherMini[];
   totalStudents: number;
   attendanceSummary: {
@@ -32,6 +41,7 @@ export type SerializedBatch = {
     completedSessions: number;
     averageAttendancePercent: number;
   };
+  createdBy: string;
   createdAt: string;
   updatedAt: string;
 };

@@ -36,15 +36,24 @@ export const batchStudentInputSchema = z.object({
   endMonth: z.string().trim().optional().default(""),
 });
 
+export const BATCH_STATUS_OPTIONS = ["Active", "Inactive", "Completed"] as const;
+
 export const batchWriteSchema = z.object({
   batchName: z.string().trim().min(2, "Batch name is required"),
+  batchCode: z.string().trim().optional(),
   courseName: z.string().trim().min(1, "Course is required"),
+  batchTiming: z.string().trim().optional(),
   batchDay: z.string().trim().min(1, "Batch day is required"),
   batchTime: z.string().trim().min(1, "Batch time is required"),
+  startDate: z.string().trim().optional(),
+  endDate: z.string().trim().optional(),
   startMonth: z.string().trim().min(1, "Start month is required"),
   endMonth: z.string().trim().min(1, "End month is required"),
+  roomNumber: z.string().trim().optional(),
   branch: z.string().trim().min(1, "Branch is required"),
+  maxStudents: z.coerce.number().int().min(1).max(500).optional(),
   batchCapacity: z.coerce.number().int().min(1).max(500),
+  batchStatus: z.enum(BATCH_STATUS_OPTIONS).optional().default("Active"),
   description: z.string().trim().optional().default(""),
   students: z.array(batchStudentInputSchema).optional().default([]),
   teacherIds: z.array(z.string().min(1)).optional().default([]),

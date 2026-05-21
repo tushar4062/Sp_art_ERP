@@ -34,5 +34,8 @@ const CredentialSchema = new mongoose.Schema<CredentialDocument>(
   }
 );
 
-const CredentialModel = mongoose.models.Credential as mongoose.Model<CredentialDocument>;
-export default CredentialModel || mongoose.model<CredentialDocument>('Credential', CredentialSchema);
+const CredentialModel =
+  (mongoose.models.Credential as mongoose.Model<CredentialDocument> | undefined) ??
+  mongoose.model<CredentialDocument>("Credential", CredentialSchema);
+
+export default CredentialModel;

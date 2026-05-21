@@ -9,6 +9,8 @@ import Student from '@/lib/models/Student';
 import { syncStudentPortalPassword } from '@/lib/student-portal';
 
 import { sendAccountCreationEmail } from '@/lib/sendEmail';
+import { normalizeEmail } from '@/lib/auth/normalizeEmail';
+import { findCredentialByEmail } from '@/lib/auth/findCredential';
 
 
 export const runtime = 'nodejs';
@@ -95,6 +97,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const emailNorm = normalizeEmail(email);
+
     if (password !== confirmPassword) {
       return NextResponse.json({ error: 'Passwords do not match' }, { status: 400 });
     }
@@ -111,9 +115,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const username = email.split('@')[0];
+    const username = emailNorm.split('@')[0];
 
-    const existingEmail = await Credential.findOne({ email });
+    const existingEmail = await findCredentialByEmail(emailNorm);
     if (existingEmail) {
       return NextResponse.json({ error: 'Email already registered' }, { status: 409 });
     }
@@ -128,7 +132,7 @@ export async function POST(request: NextRequest) {
     const credential = await Credential.create({
       name,
       username,
-      email,
+      email: emailNorm,
       password,
       passwordHash,
       role,
@@ -143,9 +147,9 @@ export async function POST(request: NextRequest) {
 
     try {
       await sendAccountCreationEmail({
-        to: email,
+        to: emailNorm,
         name,
-        email,
+        email: emailNorm,
         password,
         loginUrl,
       });
@@ -164,7 +168,7 @@ export async function POST(request: NextRequest) {
         createdBadgeId = badgeId;
         const student = await Student.create({
           fullName: name,
-          email,
+          email: emailNorm,
           badgeId,
           className: 'Not Assigned',
           phone: mobileNumber,
@@ -188,19 +192,29 @@ export async function POST(request: NextRequest) {
 
     if (role === 'teacher') {
       try {
-        const badgeId = await getUniqueBadgeId('teacher');
-        createdBadgeId = badgeId;
-        const teacher = await Teacher.create({
-          fullName: name,
-          badgeId,
-          email,
-          phone: mobileNumber,
-          specialization: 'Watercolor',
-          experience: 1,
-          status: accountStatus === 'Inactive' ? 'Inactive' : 'Active',
-          classes: [],
-          isSenior: false,
-        });
+        const esc = emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        let teacher = await Teacher.findOne({ email: { $regex: new RegExp(`^${esc}$`, 'i') } });
+        if (!teacher) {
+          const badgeId = await getUniqueBadgeId('teacher');
+          createdBadgeId = badgeId;
+          teacher = await Teacher.create({
+            fullName: name,
+            badgeId,
+            email: emailNorm,
+            phone: mobileNumber,
+            specialization: 'Watercolor',
+            experience: 1,
+            status: accountStatus === 'Inactive' ? 'Inactive' : 'Active',
+            classes: [],
+            isSenior: false,
+          });
+        } else {
+          createdBadgeId = teacher.badgeId;
+          if (!teacher.email || teacher.email.toLowerCase() !== emailNorm) {
+            teacher.email = emailNorm;
+            await teacher.save();
+          }
+        }
         extraRecord = {
           teacher: {
             id: teacher._id.toString(),
@@ -222,25 +236,35 @@ export async function POST(request: NextRequest) {
 
     if (role === 'senior_teacher') {
       try {
-        const badgeId = await getUniqueBadgeId('senior_teacher');
-        createdBadgeId = badgeId;
-        const seniorTeacher = await SeniorTeacher.create({
-          fullName: name,
-          badgeId,
-          email,
-          phone: mobileNumber,
-          specialization: 'General Art',
-          yearsOfExperience: 1,
-          role: 'Senior Teacher',
-          qualification: 'Art Education',
-          address: 'Not provided',
-          joiningDate: new Date(),
-          salary: 0,
-          bio: 'Created from credential',
-          profileImage: '',
-          status: accountStatus === 'Inactive' ? 'Inactive' : 'Active',
-          assignedClasses: 0,
-        });
+        const esc = emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        let seniorTeacher = await SeniorTeacher.findOne({ email: { $regex: new RegExp(`^${esc}$`, 'i') } });
+        if (!seniorTeacher) {
+          const badgeId = await getUniqueBadgeId('senior_teacher');
+          createdBadgeId = badgeId;
+          seniorTeacher = await SeniorTeacher.create({
+            fullName: name,
+            badgeId,
+            email: emailNorm,
+            phone: mobileNumber,
+            specialization: 'General Art',
+            yearsOfExperience: 1,
+            role: 'Senior Teacher',
+            qualification: 'Art Education',
+            address: 'Not provided',
+            joiningDate: new Date(),
+            salary: 0,
+            bio: 'Created from credential',
+            profileImage: '',
+            status: accountStatus === 'Inactive' ? 'Inactive' : 'Active',
+            assignedClasses: 0,
+          });
+        } else {
+          createdBadgeId = seniorTeacher.badgeId;
+          if (!seniorTeacher.email || seniorTeacher.email.toLowerCase() !== emailNorm) {
+            seniorTeacher.email = emailNorm;
+            await seniorTeacher.save();
+          }
+        }
         extraRecord = {
           seniorTeacher: {
             id: seniorTeacher._id.toString(),

@@ -15,19 +15,31 @@ import { batchFetch } from "@/lib/batch/batchFetch";
 import { useBatchRoutes } from "@/lib/batch/useBatchRoutes";
 import { canManageBatches } from "@/lib/batch/permissions";
 import { messageFromUnknown } from "@/lib/errors/messageFromUnknown";
+import { BatchTeacherAttendancePanel } from "@/components/attendance/BatchTeacherAttendancePanel";
 
-export function BatchDetailPage({ id }: { id: string }) {
+type BatchDetailPageProps = {
+  id: string;
+  /** Teacher portal: read-only, uses /api/teacher/batches */
+  readOnly?: boolean;
+  listHref?: string;
+};
+
+export function BatchDetailPage({ id, readOnly = false, listHref }: BatchDetailPageProps) {
   const router = useRouter();
   const { user } = useAuth();
   const routes = useBatchRoutes();
-  const canWrite = canManageBatches(user?.role);
+  const backList = listHref ?? routes.list;
+  const canWrite = !readOnly && canManageBatches(user?.role);
   const [batch, setBatch] = useState<SerializedBatch | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await batchFetch(`/api/senior-teacher/batches/${id}`);
+        const url = readOnly ? `/api/teacher/batches/${id}` : `/api/senior-teacher/batches/${id}`;
+        const res = readOnly
+          ? await fetch(url, { credentials: "include" })
+          : await batchFetch(url);
         const json = await res.json();
         if (res.status === 401) {
           router.push("/login");
@@ -37,12 +49,12 @@ export function BatchDetailPage({ id }: { id: string }) {
         setBatch(json.data.batch);
       } catch (e) {
         toast.error(messageFromUnknown(e, "Failed to load batch"));
-        router.push(routes.list);
+        router.push(backList);
       } finally {
         setLoading(false);
       }
     })();
-  }, [id, router]);
+  }, [id, router, readOnly, backList]);
 
   if (loading || !batch) {
     return (
@@ -53,13 +65,13 @@ export function BatchDetailPage({ id }: { id: string }) {
     );
   }
 
-  const timing = `${batch.batchDay} · ${batch.batchTime}`;
+  const timing = batch.batchTiming || `${batch.batchDay} · ${batch.batchTime}`;
 
   return (
     <div className="space-y-6 max-w-4xl">
       <div className="flex flex-wrap items-start gap-3">
         <Button variant="ghost" size="icon" className="rounded-xl shrink-0" asChild>
-          <Link href={routes.list}>
+          <Link href={backList}>
             <ArrowLeft className="w-5 h-5" />
           </Link>
         </Button>
@@ -135,25 +147,9 @@ export function BatchDetailPage({ id }: { id: string }) {
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
           <h2 className="font-display font-semibold flex items-center gap-2">
             <BarChart3 className="w-4 h-4 text-primary" />
-            Attendance summary
+            Teacher attendance
           </h2>
-          <p className="text-sm text-muted-foreground">
-            Placeholder metrics for reporting — connect to your attendance module when ready.
-          </p>
-          <dl className="text-sm space-y-2">
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Total sessions</dt>
-              <dd className="font-medium">{batch.attendanceSummary.totalSessions}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Completed</dt>
-              <dd className="font-medium">{batch.attendanceSummary.completedSessions}</dd>
-            </div>
-            <div className="flex justify-between">
-              <dt className="text-muted-foreground">Avg. attendance</dt>
-              <dd className="font-medium">{batch.attendanceSummary.averageAttendancePercent}%</dd>
-            </div>
-          </dl>
+          <BatchTeacherAttendancePanel batchId={batch.id} />
         </div>
       </div>
 

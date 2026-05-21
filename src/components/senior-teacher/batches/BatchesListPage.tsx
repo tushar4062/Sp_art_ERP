@@ -44,6 +44,7 @@ export function BatchesListPage() {
   const [search, setSearch] = useState("");
   const [debounced, setDebounced] = useState("");
   const [course, setCourse] = useState("All");
+  const [status, setStatus] = useState("All");
   const [teacherId, setTeacherId] = useState("All");
   const [page, setPage] = useState(1);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -66,6 +67,7 @@ export function BatchesListPage() {
         search: debounced,
         course: course === "All" ? "" : course,
         teacherId: teacherId === "All" ? "" : teacherId,
+        status,
       });
       const res = await batchFetch(`/api/senior-teacher/batches?${params}`);
       const json = await res.json();
@@ -83,7 +85,7 @@ export function BatchesListPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, debounced, course, teacherId, router]);
+  }, [page, debounced, course, status, teacherId, router]);
 
   useEffect(() => {
     void load();
@@ -124,15 +126,13 @@ export function BatchesListPage() {
               </Link>
             </Button>
           ) : (
-            <p className="text-sm text-muted-foreground max-w-xs text-right">
-              Viewing as senior teacher. Only an admin can create or edit batches.
-            </p>
+            <p className="text-sm text-muted-foreground max-w-xs text-right">View-only access for this account.</p>
           )
         }
       />
 
       <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <div className="relative xl:col-span-2">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -153,6 +153,17 @@ export function BatchesListPage() {
                   {c}
                 </SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={status} onValueChange={setStatus}>
+            <SelectTrigger className="rounded-2xl">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="All">All statuses</SelectItem>
+              <SelectItem value="Active">Active</SelectItem>
+              <SelectItem value="Inactive">Inactive</SelectItem>
+              <SelectItem value="Completed">Completed</SelectItem>
             </SelectContent>
           </Select>
           <Select value={teacherId} onValueChange={setTeacherId}>
@@ -201,9 +212,20 @@ export function BatchesListPage() {
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2 text-xs text-slate-600">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
+                        (b.batchStatus || "Active") === "Active"
+                          ? "bg-emerald-50 text-emerald-800 border border-emerald-100"
+                          : (b.batchStatus || "") === "Completed"
+                            ? "bg-blue-50 text-blue-800 border border-blue-100"
+                            : "bg-slate-100 text-slate-700"
+                      }`}
+                    >
+                      {b.batchStatus || "Active"}
+                    </span>
                     <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-800 px-2.5 py-1 border border-amber-100">
                       <Clock className="w-3 h-3" />
-                      {b.batchDay} · {b.batchTime}
+                      {b.batchTiming || `${b.batchDay} · ${b.batchTime}`}
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1">
                       <Users className="w-3 h-3" />

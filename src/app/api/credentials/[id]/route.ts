@@ -5,6 +5,8 @@ import Credential from '@/lib/models/Credentials';
 import Student from '@/lib/models/Student';
 import Teacher from '@/lib/models/Teacher';
 import SeniorTeacher from '@/lib/models/SeniorTeacher';
+import { normalizeEmail } from '@/lib/auth/normalizeEmail';
+import { findCredentialByEmail } from '@/lib/auth/findCredential';
 
 export const runtime = 'nodejs';
 const roles = ['student', 'teacher', 'senior_teacher'] as const;
@@ -63,11 +65,12 @@ export async function PUT(
 
     if (name) updateData.name = name;
     if (email) {
-      const existingEmail = await Credential.findOne({ email, _id: { $ne: id } });
-      if (existingEmail) {
+      const emailNorm = normalizeEmail(email);
+      const existingEmail = await findCredentialByEmail(emailNorm);
+      if (existingEmail && existingEmail._id.toString() !== id) {
         return NextResponse.json({ error: 'Email already registered' }, { status: 409 });
       }
-      updateData.email = email;
+      updateData.email = emailNorm;
     }
 
     if (role) {

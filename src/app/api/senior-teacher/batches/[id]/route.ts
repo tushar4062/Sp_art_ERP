@@ -5,6 +5,8 @@ import Batch, { type BatchDocument } from "@/lib/models/Batch";
 import { requireBatchRead, requireBatchWrite } from "@/lib/auth/require-batch-access";
 import { batchWriteSchema } from "@/lib/validators/batch";
 import { serializeBatch } from "@/lib/serializers/batchSerialize";
+import { applyBatchWriteToDocument } from "@/lib/batch/applyBatchFields";
+import { syncTeacherAssignedBatches, removeBatchFromAllTeachers } from "@/lib/batch/syncTeacherBatches";
 
 export const runtime = "nodejs";
 
@@ -63,29 +65,11 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: "Batch not found" }, { status: 404 });
     }
 
-    batch.batchName = data.batchName;
-    batch.courseName = data.courseName;
-    batch.batchDay = data.batchDay;
-    batch.batchTime = data.batchTime;
-    batch.startMonth = data.startMonth;
-    batch.endMonth = data.endMonth;
-    batch.branch = data.branch;
-    batch.batchCapacity = data.batchCapacity;
-    batch.description = data.description ?? "";
+    applyBatchWriteToDocument(batch, data);
     batch.teacherIds = teacherIds;
-    batch.set(
-      "students",
-      data.students.map(s => ({
-        studentName: s.studentName,
-        studentEmail: s.studentEmail || "",
-        phone: s.phone || "",
-        course: s.course || "",
-        batchDay: s.batchDay || "",
-        batchTime: s.batchTime || "",
-        startMonth: s.startMonth || "",
-        endMonth: s.endMonth || "",
-      })),
-    );
+    await batch.save();
+
+    await syncTeacherAssignedBatches(id, teacherIds.map(t => t.toString()));
 
     const populated = await Batch.findById(batch._id).populate("teacherIds", "fullName email phone");
     return NextResponse.json({
@@ -110,6 +94,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     }
 
     await dbConnect();
+    await removeBatchFromAllTeachers(id);
     const res = await Batch.findByIdAndDelete(id);
     if (!res) {
       return NextResponse.json({ success: false, error: "Batch not found" }, { status: 404 });

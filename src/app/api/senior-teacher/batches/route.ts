@@ -7,6 +7,8 @@ import { requireBatchRead, requireBatchWrite } from "@/lib/auth/require-batch-ac
 import { batchWriteSchema } from "@/lib/validators/batch";
 import { buildTeacherAssignmentEmailHtml, sendTransactionalEmail } from "@/lib/email/mailer";
 import { serializeBatch } from "@/lib/serializers/batchSerialize";
+import { applyBatchWriteToDocument, generateBatchCode } from "@/lib/batch/applyBatchFields";
+import { syncTeacherAssignedBatches } from "@/lib/batch/syncTeacherBatches";
 
 export const runtime = "nodejs";
 
@@ -14,13 +16,12 @@ const PAGE_SIZE = 12;
 
 async function notifyAssignedTeachers(batch: BatchDocument) {
   const warnings: string[] = [];
-  const fresh = await Batch.findById(batch._id).select("teacherIds").lean();
-  const ids = (fresh?.teacherIds as mongoose.Types.ObjectId[] | undefined) ?? [];
+  const ids = batch.teacherIds ?? [];
   if (!ids.length) return warnings;
 
   const teachers = await Teacher.find({ _id: { $in: ids } }).lean();
-  const batchTiming = `${batch.batchDay} · ${batch.batchTime}`;
-  const startDate = batch.startMonth;
+  const batchTiming = batch.batchTiming || `${batch.batchDay} · ${batch.batchTime}`;
+  const startDate = batch.startDate ?? batch.startMonth;
 
   for (const t of teachers) {
     const name = t.fullName || "Teacher";
@@ -47,34 +48,66 @@ async function notifyAssignedTeachers(batch: BatchDocument) {
   return warnings;
 }
 
+function buildListFilter(
+  access: { kind: string; seniorTeacherId?: string },
+  params: { search: string; course: string; teacherId: string; status: string },
+) {
+  const andClauses: Record<string, unknown>[] = [];
+
+  if (access.kind === "senior" && access.seniorTeacherId) {
+    const seniorOid = new mongoose.Types.ObjectId(access.seniorTeacherId);
+    andClauses.push({
+      $or: [
+        { createdBy: seniorOid },
+        { createdBy: { $exists: false } },
+        { createdBy: null },
+      ],
+    });
+  }
+
+  if (params.course && params.course !== "All") andClauses.push({ courseName: params.course });
+  if (params.status && params.status !== "All") andClauses.push({ batchStatus: params.status });
+  if (params.teacherId && params.teacherId !== "All" && mongoose.Types.ObjectId.isValid(params.teacherId)) {
+    andClauses.push({ teacherIds: new mongoose.Types.ObjectId(params.teacherId) });
+  }
+  if (params.search) {
+    const esc = params.search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const rx = new RegExp(esc, "i");
+    andClauses.push({
+      $or: [
+        { batchName: rx },
+        { batchCode: rx },
+        { courseName: rx },
+        { branch: rx },
+        { roomNumber: rx },
+        { description: rx },
+      ],
+    });
+  }
+
+  return andClauses.length ? { $and: andClauses } : {};
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireBatchRead(request);
     if (!auth.ok) return auth.response;
+    if (auth.access.kind === "teacher") {
+      return NextResponse.json({ success: false, error: "Use /api/teacher/batches" }, { status: 403 });
+    }
 
     await dbConnect();
 
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
-    const search = (searchParams.get("search") || "").trim();
-    const course = (searchParams.get("course") || "").trim();
-    const teacherId = (searchParams.get("teacherId") || "").trim();
-
-    const filter: Record<string, unknown> = {};
-    if (course && course !== "All") {
-      filter.courseName = course;
-    }
-    if (teacherId && teacherId !== "All" && mongoose.Types.ObjectId.isValid(teacherId)) {
-      filter.teacherIds = new mongoose.Types.ObjectId(teacherId);
-    }
-    if (search) {
-      const esc = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const rx = new RegExp(esc, "i");
-      filter.$or = [{ batchName: rx }, { courseName: rx }, { branch: rx }, { description: rx }];
-    }
+    const filter = buildListFilter(auth.access, {
+      search: (searchParams.get("search") || "").trim(),
+      course: (searchParams.get("course") || "").trim(),
+      teacherId: (searchParams.get("teacherId") || "").trim(),
+      status: (searchParams.get("status") || "All").trim(),
+    });
 
     const skip = (page - 1) * PAGE_SIZE;
-
     const [total, rows] = await Promise.all([
       Batch.countDocuments(filter),
       Batch.find(filter)
@@ -85,8 +118,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     const batches = rows.map(d => serializeBatch(d as BatchDocument));
-
-    const courseOptions = await Batch.distinct("courseName");
+    const courseOptions = await Batch.distinct("courseName", filter);
     const teacherOptions = await Teacher.find({ isSenior: { $ne: true }, status: "Active" })
       .select("fullName")
       .sort({ fullName: 1 })
@@ -135,8 +167,9 @@ export async function POST(request: NextRequest) {
 
     await dbConnect();
 
-    const batch = await Batch.create({
+    const batch = new Batch({
       batchName: data.batchName,
+      batchCode: data.batchCode || generateBatchCode(data.batchName),
       courseName: data.courseName,
       batchDay: data.batchDay,
       batchTime: data.batchTime,
@@ -145,18 +178,19 @@ export async function POST(request: NextRequest) {
       branch: data.branch,
       batchCapacity: data.batchCapacity,
       description: data.description,
-      students: data.students.map(s => ({
-        studentName: s.studentName,
-        studentEmail: s.studentEmail || "",
-        phone: s.phone || "",
-        course: s.course || "",
-        batchDay: s.batchDay || "",
-        batchTime: s.batchTime || "",
-        startMonth: s.startMonth || "",
-        endMonth: s.endMonth || "",
-      })),
       teacherIds,
+      students: [],
     });
+
+    if (write.access.kind === "senior") {
+      batch.createdBy = new mongoose.Types.ObjectId(write.access.seniorTeacherId);
+    }
+
+    applyBatchWriteToDocument(batch, data);
+    batch.teacherIds = teacherIds;
+    await batch.save();
+
+    await syncTeacherAssignedBatches(batch._id.toString(), teacherIds.map(id => id.toString()));
 
     const populated = await Batch.findById(batch._id).populate("teacherIds", "fullName email");
     const doc = populated as BatchDocument | null;
@@ -169,7 +203,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: { batch: serializeBatch(doc) },
-      message: "Batch created",
+      message: "Batch created and assigned to selected teachers",
       warnings: emailWarnings.length ? emailWarnings : undefined,
     });
   } catch (e) {

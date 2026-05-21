@@ -61,7 +61,7 @@ export default function Login() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
-          body: JSON.stringify({ email, password, role }),
+          body: JSON.stringify({ email: email.trim().toLowerCase(), password, role }),
         });
 
         const data = await response.json();
