@@ -1,5 +1,11 @@
-import { TeacherAttendance } from "@/pages/teacher/TeacherPages";
+import { AttendanceReportsPage } from "@/components/attendance/AttendanceReportsPage";
 
 export default function AdminSeniorTeacherAttendancePage() {
-  return <TeacherAttendance />;
+  return (
+    <AttendanceReportsPage
+      portal="admin"
+      title="Attendance reports"
+      subtitle="Academy-wide attendance marked by teachers."
+    />
+  );
 }

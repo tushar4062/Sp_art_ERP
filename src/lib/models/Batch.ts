@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-/** Embedded roster line — same person may appear multiple times (req. 3). */
+/** Embedded roster line — same person may appear multiple times. */
 export interface BatchEmbeddedStudent {
   _id: mongoose.Types.ObjectId;
   studentName: string;
@@ -19,19 +19,32 @@ export interface BatchAttendanceSummary {
   averageAttendancePercent: number;
 }
 
+export type BatchStatus = "Active" | "Inactive" | "Completed";
+
 export interface BatchDocument extends mongoose.Document {
   batchName: string;
+  batchCode?: string;
   courseName: string;
+  /** Combined schedule label */
+  batchTiming?: string;
   batchDay: string;
   batchTime: string;
+  startDate?: string;
+  endDate?: string;
   startMonth: string;
   endMonth: string;
+  roomNumber?: string;
   branch: string;
+  maxStudents?: number;
   batchCapacity: number;
+  batchStatus: BatchStatus;
   description: string;
+  /** Assigned students (embedded roster) */
   students: BatchEmbeddedStudent[];
+  /** Assigned teachers — query with: teacherIds: loggedInTeacherId */
   teacherIds: mongoose.Types.ObjectId[];
   attendanceSummary: BatchAttendanceSummary;
+  createdBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -62,23 +75,38 @@ const AttendanceSummarySchema = new mongoose.Schema(
 const BatchSchema = new mongoose.Schema<BatchDocument>(
   {
     batchName: { type: String, required: true, trim: true },
+    batchCode: { type: String, trim: true, index: true },
     courseName: { type: String, required: true, trim: true },
+    batchTiming: { type: String, trim: true },
     batchDay: { type: String, required: true, trim: true },
     batchTime: { type: String, required: true, trim: true },
+    startDate: { type: String, trim: true },
+    endDate: { type: String, trim: true },
     startMonth: { type: String, required: true, trim: true },
     endMonth: { type: String, required: true, trim: true },
+    roomNumber: { type: String, trim: true },
     branch: { type: String, required: true, trim: true },
+    maxStudents: { type: Number, min: 1 },
     batchCapacity: { type: Number, required: true, min: 1 },
+    batchStatus: {
+      type: String,
+      enum: ["Active", "Inactive", "Completed"],
+      default: "Active",
+      index: true,
+    },
     description: { type: String, default: "", trim: true },
     students: { type: [BatchStudentSchema], default: [] },
-    teacherIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Teacher" }],
+    teacherIds: [{ type: mongoose.Schema.Types.ObjectId, ref: "Teacher", index: true }],
     attendanceSummary: {
       type: AttendanceSummarySchema,
       default: () => ({ totalSessions: 0, completedSessions: 0, averageAttendancePercent: 0 }),
     },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "SeniorTeacher", index: true },
   },
   { timestamps: true, collection: "batches" },
 );
+
+BatchSchema.index({ teacherIds: 1 });
 
 const BatchModel =
   (mongoose.models.Batch as mongoose.Model<BatchDocument> | undefined) ??

@@ -134,7 +134,7 @@ export default function AdminCredentialsPage() {
     try {
       const payload: Record<string, unknown> = {
         name: data.name,
-        email: data.email,
+        email: data.email.trim().toLowerCase(),
         mobileNumber: data.mobileNumber,
         accountStatus: data.accountStatus,
         role: activeRole,

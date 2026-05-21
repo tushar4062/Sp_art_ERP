@@ -31,6 +31,8 @@ export interface TeacherDocument extends mongoose.Document {
   isSenior: boolean;
   /** Senior teacher who manages this teacher record */
   createdBy?: mongoose.Types.ObjectId;
+  /** Batches this teacher is assigned to (synced from Batch.teacherIds) */
+  assignedBatches?: mongoose.Types.ObjectId[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -66,6 +68,7 @@ const TeacherSchema = new mongoose.Schema<TeacherDocument>(
     status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
     isSenior: { type: Boolean, default: false },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'SeniorTeacher', index: true },
+    assignedBatches: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Batch' }],
   },
   {
     timestamps: true,

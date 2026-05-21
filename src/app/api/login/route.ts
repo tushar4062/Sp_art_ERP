@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
-import Credential from '@/lib/models/Credentials';
 import Teacher from '@/lib/models/Teacher';
 import SeniorTeacher from '@/lib/models/SeniorTeacher';
 import {
   TEACHER_SESSION_COOKIE,
   SENIOR_TEACHER_SESSION_COOKIE,
+  STUDENT_SESSION_COOKIE,
   portalSessionCookieOptions,
+  clearSessionCookieOptions,
 } from '@/lib/auth/portal-session';
+import { findCredentialByEmail } from '@/lib/auth/findCredential';
+import { normalizeEmail } from '@/lib/auth/normalizeEmail';
+
+function clearOtherPortalSessions(res: NextResponse) {
+  res.cookies.set(TEACHER_SESSION_COOKIE, '', clearSessionCookieOptions());
+  res.cookies.set(SENIOR_TEACHER_SESSION_COOKIE, '', clearSessionCookieOptions());
+  res.cookies.set(STUDENT_SESSION_COOKIE, '', clearSessionCookieOptions());
+}
 
 export const runtime = 'nodejs';
 
@@ -33,9 +42,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'This role is not supported for database login yet' }, { status: 400 });
     }
 
-    const credential = await Credential.findOne({ email: email.toLowerCase() });
+    const emailNorm = normalizeEmail(String(email));
+    const credential = await findCredentialByEmail(emailNorm);
     if (!credential) {
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
+    }
+
+    if (!credential.passwordHash) {
+      return NextResponse.json(
+        { error: 'Account password is not set. Ask admin to reset your credential password.' },
+        { status: 401 },
+      );
     }
 
     if (credential.role !== expectedRole) {
@@ -52,8 +69,8 @@ export async function POST(request: NextRequest) {
     }
 
     if (expectedRole === 'teacher') {
-      const emailNorm = credential.email.toLowerCase().trim();
-      const esc = emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const credEmail = normalizeEmail(credential.email);
+      const esc = credEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const teacher = await Teacher.findOne({
         email: { $regex: new RegExp(`^${esc}$`, 'i') },
       });
@@ -74,13 +91,14 @@ export async function POST(request: NextRequest) {
           role,
         },
       });
+      clearOtherPortalSessions(res);
       res.cookies.set(TEACHER_SESSION_COOKIE, teacher._id.toString(), portalSessionCookieOptions());
       return res;
     }
 
     if (expectedRole === 'senior_teacher') {
-      const emailNorm = credential.email.toLowerCase().trim();
-      const esc = emailNorm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const credEmail = normalizeEmail(credential.email);
+      const esc = credEmail.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const senior = await SeniorTeacher.findOne({
         email: { $regex: new RegExp(`^${esc}$`, 'i') },
       });
@@ -101,6 +119,7 @@ export async function POST(request: NextRequest) {
           role,
         },
       });
+      clearOtherPortalSessions(res);
       res.cookies.set(SENIOR_TEACHER_SESSION_COOKIE, senior._id.toString(), portalSessionCookieOptions());
       return res;
     }
