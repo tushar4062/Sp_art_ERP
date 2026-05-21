@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { z } from "zod";
 import dbConnect from "@/lib/mongodb";
-import Teacher from "@/lib/models/Teacher";
-import SeniorTeacher from "@/lib/models/SeniorTeacher";
+import Teacher, { type TeacherDocument } from "@/lib/models/Teacher";
 import { requireSeniorTeacherFromRequest } from "@/lib/auth/require-senior-teacher";
+import { singleTeacherScope } from "@/lib/auth/senior-teacher-teacher-scope";
 import { toTeacherJson } from "@/lib/serializers/teacherSerialize";
 
 export const runtime = "nodejs";
@@ -27,13 +27,6 @@ const updateSchema = z.object({
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-function teacherScope(teacherId: string) {
-  return {
-    _id: new mongoose.Types.ObjectId(teacherId),
-    isSenior: { $ne: true },
-  };
-}
-
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const auth = await requireSeniorTeacherFromRequest(request);
@@ -45,12 +38,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     await dbConnect();
-    const senior = await SeniorTeacher.findById(auth.seniorTeacher.id);
-    if (!senior) {
-      return NextResponse.json({ success: false, error: "Senior teacher not found" }, { status: 404 });
-    }
-
-    const teacher = await Teacher.findOne(teacherScope(id));
+    const teacher = await Teacher.findOne(singleTeacherScope(id, auth.seniorTeacher.id));
     if (!teacher) {
       return NextResponse.json({ success: false, error: "Teacher not found" }, { status: 404 });
     }
@@ -82,20 +70,12 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     await dbConnect();
-    const senior = await SeniorTeacher.findById(auth.seniorTeacher.id);
-    if (!senior) {
-      return NextResponse.json({ success: false, error: "Senior teacher not found" }, { status: 404 });
-    }
-
-    const teacher = await Teacher.findOne(teacherScope(id));
+    const teacher = await Teacher.findOne(singleTeacherScope(id, auth.seniorTeacher.id));
     if (!teacher) {
       return NextResponse.json({ success: false, error: "Teacher not found" }, { status: 404 });
     }
 
     const data = parsed.data;
-    if (!teacher.createdBy) {
-      teacher.createdBy = new mongoose.Types.ObjectId(auth.seniorTeacher.id);
-    }
     if (data.fullName !== undefined) teacher.fullName = data.fullName;
     if (data.phone !== undefined) teacher.phone = data.phone;
     if (data.gender !== undefined) teacher.gender = data.gender;

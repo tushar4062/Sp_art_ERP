@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { parseJsonResponse } from "@/lib/api/parseJsonResponse";
+import { messageFromUnknown } from "@/lib/errors/messageFromUnknown";
 
 export type SeniorTeacherTeacherItem = {
   id: string;
@@ -175,7 +176,7 @@ export function SeniorTeacherTeachersPage() {
       setSubjectOptions(json.data.filterOptions?.subjects ?? []);
       setSpecializationOptions(json.data.filterOptions?.specializations ?? []);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(messageFromUnknown(e, "Failed to load teachers"));
     } finally {
       setLoading(false);
     }
@@ -212,7 +213,7 @@ export function SeniorTeacherTeachersPage() {
       setSelectedTeacher(t);
       setForm(teacherToForm(t));
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(messageFromUnknown(e, "Failed to load teacher"));
       setSheetOpen(false);
     } finally {
       setSheetLoading(false);
@@ -259,7 +260,7 @@ export function SeniorTeacherTeachersPage() {
       setSheetMode("view");
       fetchTeachers();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(messageFromUnknown(e, "Save failed"));
     } finally {
       setSaving(false);
     }
@@ -364,7 +365,7 @@ export function SeniorTeacherTeachersPage() {
             <p className="text-lg font-display font-semibold text-foreground">No teachers found</p>
             <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
               {pagination.total === 0 && !debouncedSearch && filterStatus === "All"
-                ? "No teachers found in the teachers collection yet."
+                ? "No teachers in the teachers collection yet. Add teachers via Admin or set createdBy in MongoDB."
                 : "Try adjusting your search or filters."}
             </p>
           </div>

@@ -73,5 +73,8 @@ const TeacherSchema = new mongoose.Schema<TeacherDocument>(
   }
 );
 
-const TeacherModel = mongoose.models.Teacher as mongoose.Model<TeacherDocument>;
-export default TeacherModel || mongoose.model<TeacherDocument>('Teacher', TeacherSchema);
+const TeacherModel =
+  (mongoose.models.Teacher as mongoose.Model<TeacherDocument> | undefined) ??
+  mongoose.model<TeacherDocument>("Teacher", TeacherSchema);
+
+export default TeacherModel;

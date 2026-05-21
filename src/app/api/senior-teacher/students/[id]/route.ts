@@ -3,8 +3,8 @@ import mongoose from "mongoose";
 import { z } from "zod";
 import dbConnect from "@/lib/mongodb";
 import Student from "@/lib/models/Student";
-import SeniorTeacher from "@/lib/models/SeniorTeacher";
 import { requireSeniorTeacherFromRequest } from "@/lib/auth/require-senior-teacher";
+import { singleStudentScope } from "@/lib/auth/senior-teacher-student-scope";
 import { toStudentJson } from "@/lib/serializers/studentSerialize";
 
 export const runtime = "nodejs";
@@ -25,10 +25,6 @@ const updateSchema = z.object({
 
 type RouteContext = { params: Promise<{ id: string }> };
 
-function studentScope(studentId: string) {
-  return { _id: new mongoose.Types.ObjectId(studentId) };
-}
-
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const auth = await requireSeniorTeacherFromRequest(request);
@@ -40,12 +36,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     await dbConnect();
-    const senior = await SeniorTeacher.findById(auth.seniorTeacher.id);
-    if (!senior) {
-      return NextResponse.json({ success: false, error: "Senior teacher not found" }, { status: 404 });
-    }
-
-    const student = await Student.findOne(studentScope(id));
+    const student = await Student.findOne(singleStudentScope(id, auth.seniorTeacher.id));
     if (!student) {
       return NextResponse.json({ success: false, error: "Student not found" }, { status: 404 });
     }
@@ -77,12 +68,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     await dbConnect();
-    const senior = await SeniorTeacher.findById(auth.seniorTeacher.id);
-    if (!senior) {
-      return NextResponse.json({ success: false, error: "Senior teacher not found" }, { status: 404 });
-    }
-
-    const student = await Student.findOne(studentScope(id));
+    const student = await Student.findOne(singleStudentScope(id, auth.seniorTeacher.id));
     if (!student) {
       return NextResponse.json({ success: false, error: "Student not found" }, { status: 404 });
     }
