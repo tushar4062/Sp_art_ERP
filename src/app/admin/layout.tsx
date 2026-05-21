@@ -20,7 +20,7 @@ const adminNav: NavItem[] = [
   { to: "/admin/crm", label: "CRM Leads", icon: Sparkles },
   { to: "/admin/payroll", label: "HR & Payroll", icon: Wallet },
   { to: "/admin/inventory", label: "Inventory", icon: Boxes },
-  { to: "/senior-teacher/batches", label: "Batches", icon: Package },
+  { to: "/admin/batches", label: "Batches", icon: Package, end: false },
   { to: "/admin/billing", label: "Billing", icon: CreditCard },
   { to: "/admin/certificates", label: "Certificates", icon: Award },
   { to: "/admin/notifications", label: "Notifications", icon: Bell },

@@ -24,13 +24,17 @@ import {
 import type { SerializedBatch } from "@/lib/batch/types";
 import { openBatchPrintExport } from "@/lib/batch/printBatchExport";
 import { batchFetch } from "@/lib/batch/batchFetch";
+import { useBatchRoutes } from "@/lib/batch/useBatchRoutes";
+import { canManageBatches } from "@/lib/batch/permissions";
+import { messageFromUnknown } from "@/lib/errors/messageFromUnknown";
 
 type Pagination = { page: number; limit: number; total: number; totalPages: number };
 
 export function BatchesListPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const canWrite = user?.role === "admin";
+  const routes = useBatchRoutes();
+  const canWrite = canManageBatches(user?.role);
 
   const [batches, setBatches] = useState<SerializedBatch[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 12, total: 0, totalPages: 1 });
@@ -75,7 +79,7 @@ export function BatchesListPage() {
       setCourseOptions(json.data.filterOptions?.courses ?? []);
       setTeacherOptions(json.data.filterOptions?.teachers ?? []);
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(messageFromUnknown(e, "Failed to load batches"));
     } finally {
       setLoading(false);
     }
@@ -92,7 +96,7 @@ export function BatchesListPage() {
       const res = await batchFetch(`/api/senior-teacher/batches/${deleteId}`, { method: "DELETE" });
       const json = await res.json();
       if (res.status === 403) {
-        toast.error(json.error || "Only admin can delete batches");
+        toast.error(json.error || "You do not have permission to delete batches");
         return;
       }
       if (!res.ok) throw new Error(json.error || "Delete failed");
@@ -100,7 +104,7 @@ export function BatchesListPage() {
       setDeleteId(null);
       void load();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(messageFromUnknown(e, "Delete failed"));
     } finally {
       setDeleting(false);
     }
@@ -114,7 +118,7 @@ export function BatchesListPage() {
         action={
           canWrite ? (
             <Button asChild className="rounded-xl gradient-primary text-white border-0 shadow-md">
-              <Link href="/senior-teacher/batches/new">
+              <Link href={routes.new}>
                 <Plus className="w-4 h-4 mr-2" />
                 Create New Batch
               </Link>
@@ -175,7 +179,9 @@ export function BatchesListPage() {
         ) : batches.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground">
             <p className="font-medium text-foreground">No batches yet</p>
-            <p className="text-sm mt-1">{canWrite ? "Create your first batch to get started." : "Ask an admin to create a batch."}</p>
+            <p className="text-sm mt-1">
+              {canWrite ? "Create your first batch to get started." : "No batches available to view."}
+            </p>
           </div>
         ) : (
           <>
@@ -215,14 +221,14 @@ export function BatchesListPage() {
                   </div>
                   <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-100">
                     <Button variant="outline" size="sm" className="rounded-lg" asChild>
-                      <Link href={`/senior-teacher/batches/${b.id}`}>
+                      <Link href={routes.detail(b.id)}>
                         <Eye className="w-3.5 h-3.5 mr-1" /> View
                       </Link>
                     </Button>
                     {canWrite && (
                       <>
                         <Button variant="secondary" size="sm" className="rounded-lg" asChild>
-                          <Link href={`/senior-teacher/batches/${b.id}/edit`}>
+                          <Link href={routes.edit(b.id)}>
                             <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
                           </Link>
                         </Button>

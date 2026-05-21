@@ -1,8 +1,8 @@
-import { AdminBatchEditPage } from "@/components/senior-teacher/batches/AdminBatchEditPage";
+import { redirect } from "next/navigation";
 
 type Props = { params: Promise<{ id: string }> };
 
-export default async function BatchEditRoute({ params }: Props) {
+export default async function LegacyEditBatchRedirect({ params }: Props) {
   const { id } = await params;
-  return <AdminBatchEditPage id={id} />;
+  redirect(`/senior-teacher/batches/edit/${id}`);
 }

@@ -12,11 +12,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { SerializedBatch } from "@/lib/batch/types";
 import { openBatchPrintExport } from "@/lib/batch/printBatchExport";
 import { batchFetch } from "@/lib/batch/batchFetch";
+import { useBatchRoutes } from "@/lib/batch/useBatchRoutes";
+import { canManageBatches } from "@/lib/batch/permissions";
+import { messageFromUnknown } from "@/lib/errors/messageFromUnknown";
 
 export function BatchDetailPage({ id }: { id: string }) {
   const router = useRouter();
   const { user } = useAuth();
-  const canWrite = user?.role === "admin";
+  const routes = useBatchRoutes();
+  const canWrite = canManageBatches(user?.role);
   const [batch, setBatch] = useState<SerializedBatch | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -32,8 +36,8 @@ export function BatchDetailPage({ id }: { id: string }) {
         if (!res.ok) throw new Error(json.error || "Not found");
         setBatch(json.data.batch);
       } catch (e) {
-        toast.error((e as Error).message);
-        router.push("/senior-teacher/batches");
+        toast.error(messageFromUnknown(e, "Failed to load batch"));
+        router.push(routes.list);
       } finally {
         setLoading(false);
       }
@@ -55,7 +59,7 @@ export function BatchDetailPage({ id }: { id: string }) {
     <div className="space-y-6 max-w-4xl">
       <div className="flex flex-wrap items-start gap-3">
         <Button variant="ghost" size="icon" className="rounded-xl shrink-0" asChild>
-          <Link href="/senior-teacher/batches">
+          <Link href={routes.list}>
             <ArrowLeft className="w-5 h-5" />
           </Link>
         </Button>
@@ -78,7 +82,7 @@ export function BatchDetailPage({ id }: { id: string }) {
               </Button>
               {canWrite && (
                 <Button asChild className="rounded-xl gradient-primary text-white border-0">
-                  <Link href={`/senior-teacher/batches/${batch.id}/edit`}>
+                  <Link href={routes.edit(batch.id)}>
                     <Pencil className="w-4 h-4 mr-2" />
                     Edit
                   </Link>

@@ -8,7 +8,7 @@ import { RoleLayout, NavItem, RequireRoles } from "@/components/layouts/RoleLayo
 
 const seniorNav: NavItem[] = [
   { to: "/senior-teacher", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/senior-teacher/batches", label: "Batches", icon: Boxes },
+  { to: "/senior-teacher/batches", label: "Batches", icon: Boxes, end: false },
   { to: "/senior-teacher/classes", label: "My Classes", icon: CalendarDays },
   { to: "/senior-teacher/admission", label: "Admission", icon: UserPlus },
   { to: "/senior-teacher/attendance", label: "Attendance", icon: ClipboardCheck },
@@ -22,7 +22,7 @@ const seniorNav: NavItem[] = [
 
 export default function SeniorTeacherLayout({ children }: { children: ReactNode }) {
   return (
-    <RequireRoles roles={["senior-teacher", "admin"]}>
+    <RequireRoles roles={["senior-teacher"]}>
       <RoleLayout navItems={seniorNav} role="senior-teacher">
         {children}
       </RoleLayout>

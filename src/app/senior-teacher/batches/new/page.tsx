@@ -1,5 +1,5 @@
-import { AdminBatchCreatePage } from "@/components/senior-teacher/batches/AdminBatchCreatePage";
+import { redirect } from "next/navigation";
 
-export default function NewBatchPage() {
-  return <AdminBatchCreatePage />;
+export default function LegacyNewBatchRedirect() {
+  redirect("/senior-teacher/batches/create");
 }

@@ -25,6 +25,8 @@ import {
 import { batchWriteSchema, type BatchWriteInput, BATCH_DAY_OPTIONS, COURSE_OPTIONS } from "@/lib/validators/batch";
 import type { SerializedBatch } from "@/lib/batch/types";
 import { batchFetch } from "@/lib/batch/batchFetch";
+import { useBatchRoutes } from "@/lib/batch/useBatchRoutes";
+import { messageFromUnknown } from "@/lib/errors/messageFromUnknown";
 
 type TeacherBrief = { id: string; fullName: string; email: string };
 
@@ -69,6 +71,7 @@ function batchToFormInput(b: SerializedBatch): BatchWriteInput {
 
 export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit"; batchId?: string; initial?: SerializedBatch | null }) {
   const router = useRouter();
+  const routes = useBatchRoutes();
   const [teacherList, setTeacherList] = useState<TeacherBrief[]>([]);
   const [studentModal, setStudentModal] = useState(false);
   const [draft, setDraft] = useState({
@@ -89,6 +92,13 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
   });
 
   const { fields, append, remove } = useFieldArray({ control: form.control, name: "students" });
+
+  const courseName = form.watch("courseName");
+  const batchDay = form.watch("batchDay");
+
+  const onInvalid = () => {
+    toast.error("Please fill in all required batch fields.");
+  };
 
   useEffect(() => {
     if (initial) {
@@ -167,18 +177,19 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
         return;
       }
       if (res.status === 403) {
-        toast.error(json.error || "Only admin can save batches");
+        toast.error(json.error || "You do not have permission to save batches");
         return;
       }
       if (!res.ok) throw new Error(json.error || "Save failed");
+      const batchIdSaved = json?.data?.batch?.id as string | undefined;
+      if (!batchIdSaved) throw new Error("Invalid response from server");
       if (json.warnings?.length) {
         json.warnings.forEach((w: string) => toast.message(w));
       }
       toast.success(json.message || "Saved");
-      router.push(`/senior-teacher/batches/${json.data.batch.id}`);
-      router.refresh();
+      router.push(routes.detail(batchIdSaved));
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(messageFromUnknown(e, "Failed to save batch"));
     } finally {
       setSaving(false);
     }
@@ -188,7 +199,7 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="rounded-xl" asChild>
-          <Link href="/senior-teacher/batches">
+          <Link href={routes.list}>
             <ArrowLeft className="w-5 h-5" />
           </Link>
         </Button>
@@ -208,7 +219,10 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
             </div>
             <div className="space-y-2">
               <Label>Course name</Label>
-              <Select value={form.watch("courseName")} onValueChange={v => form.setValue("courseName", v, { shouldValidate: true })}>
+              <Select
+                value={courseName || undefined}
+                onValueChange={v => form.setValue("courseName", v, { shouldValidate: true })}
+              >
                 <SelectTrigger className="rounded-xl">
                   <SelectValue placeholder="Select course" />
                 </SelectTrigger>
@@ -226,7 +240,10 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
             </div>
             <div className="space-y-2">
               <Label>Batch day pattern</Label>
-              <Select value={form.watch("batchDay")} onValueChange={v => form.setValue("batchDay", v, { shouldValidate: true })}>
+              <Select
+                value={batchDay || undefined}
+                onValueChange={v => form.setValue("batchDay", v, { shouldValidate: true })}
+              >
                 <SelectTrigger className="rounded-xl">
                   <SelectValue placeholder="Select pattern" />
                 </SelectTrigger>
@@ -351,7 +368,7 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
             {saving ? "Saving…" : mode === "create" ? "Create batch" : "Save changes"}
           </Button>
           <Button type="button" variant="outline" className="rounded-xl" asChild>
-            <Link href="/senior-teacher/batches">Cancel</Link>
+            <Link href={routes.list}>Cancel</Link>
           </Button>
         </div>
       </form>
