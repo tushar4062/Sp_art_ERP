@@ -2,43 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { z } from "zod";
 import dbConnect from "@/lib/mongodb";
-import Teacher, { type TeacherDocument } from "@/lib/models/Teacher";
+import Teacher from "@/lib/models/Teacher";
 import SeniorTeacher from "@/lib/models/SeniorTeacher";
 import { requireSeniorTeacherFromRequest } from "@/lib/auth/require-senior-teacher";
+import { toTeacherJson } from "@/lib/serializers/teacherSerialize";
 
 export const runtime = "nodejs";
-
-function formatDate(value: Date | string | undefined): string {
-  if (!value) return "";
-  if (typeof value === "string") return value.slice(0, 10);
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toISOString().slice(0, 10);
-}
-
-function toTeacherJson(doc: TeacherDocument) {
-  return {
-    id: doc._id.toString(),
-    fullName: doc.fullName,
-    email: doc.email,
-    phone: doc.phone ?? "",
-    gender: doc.gender ?? "",
-    age: doc.age ?? null,
-    specialization: doc.specialization,
-    subject: doc.currentSubjectCourse ?? "",
-    experience: doc.experience,
-    qualification: doc.qualification ?? "",
-    joiningDate: formatDate(doc.joiningDate ?? doc.createdAt),
-    address: doc.address ?? "",
-    profileImage: doc.photo ?? "",
-    salary: doc.salary ?? null,
-    status: doc.status,
-    teacherId: doc.badgeId ?? "",
-    role: doc.role ?? "",
-    createdAt: doc.createdAt.toISOString(),
-    updatedAt: doc.updatedAt.toISOString(),
-  };
-}
 
 const updateSchema = z.object({
   fullName: z.string().trim().min(2).optional(),
@@ -58,6 +27,13 @@ const updateSchema = z.object({
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+function teacherScope(teacherId: string) {
+  return {
+    _id: new mongoose.Types.ObjectId(teacherId),
+    isSenior: { $ne: true },
+  };
+}
+
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const auth = await requireSeniorTeacherFromRequest(request);
@@ -74,9 +50,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: "Senior teacher not found" }, { status: 404 });
     }
 
-    const teacher = await Teacher.findOne({ _id: id, isSenior: { $ne: true } });
+    const teacher = await Teacher.findOne(teacherScope(id));
     if (!teacher) {
-      return NextResponse.json({ success: false, error: "Teacher not found in teachers collection" }, { status: 404 });
+      return NextResponse.json({ success: false, error: "Teacher not found" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true, data: { teacher: toTeacherJson(teacher) } });
@@ -111,12 +87,15 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ success: false, error: "Senior teacher not found" }, { status: 404 });
     }
 
-    const teacher = await Teacher.findOne({ _id: id, isSenior: { $ne: true } });
+    const teacher = await Teacher.findOne(teacherScope(id));
     if (!teacher) {
       return NextResponse.json({ success: false, error: "Teacher not found" }, { status: 404 });
     }
 
     const data = parsed.data;
+    if (!teacher.createdBy) {
+      teacher.createdBy = new mongoose.Types.ObjectId(auth.seniorTeacher.id);
+    }
     if (data.fullName !== undefined) teacher.fullName = data.fullName;
     if (data.phone !== undefined) teacher.phone = data.phone;
     if (data.gender !== undefined) teacher.gender = data.gender;
@@ -136,7 +115,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     return NextResponse.json({
       success: true,
       data: { teacher: toTeacherJson(teacher) },
-      message: "Teacher updated in teachers collection",
+      message: "Teacher updated",
     });
   } catch (error) {
     console.error("[senior-teacher/teachers/[id] PUT]", error);

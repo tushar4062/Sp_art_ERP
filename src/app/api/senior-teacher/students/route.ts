@@ -1,47 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import Student, { type StudentDocument } from "@/lib/models/Student";
-import SeniorTeacher from "@/lib/models/SeniorTeacher";
 import { requireSeniorTeacherFromRequest } from "@/lib/auth/require-senior-teacher";
+import { toStudentJson } from "@/lib/serializers/studentSerialize";
 
 export const runtime = "nodejs";
 
 const PAGE_SIZE = 10;
-
-function formatDate(value: Date | string | undefined): string {
-  if (!value) return "";
-  const d = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(d.getTime())) return String(value);
-  return d.toISOString().slice(0, 10);
-}
-
-function studentStatus(doc: StudentDocument): "Active" | "Inactive" {
-  return doc.feeStatus === "Paid" ? "Active" : "Inactive";
-}
-
-function toStudentJson(doc: StudentDocument) {
-  return {
-    id: doc._id.toString(),
-    fullName: doc.fullName,
-    email: doc.email ?? "",
-    phone: doc.phone ?? "",
-    gender: doc.gender ?? "",
-    age: doc.age ?? null,
-    course: doc.currentCourse ?? "",
-    className: doc.className,
-    parentName: doc.parentName ?? doc.fatherName ?? "",
-    parentContact: doc.fatherMobile ?? doc.motherMobile ?? doc.phone ?? "",
-    address: doc.address ?? "",
-    profileImage: doc.photo ?? "",
-    status: studentStatus(doc),
-    feeStatus: doc.feeStatus,
-    attendancePercentage: 0,
-    joiningDate: formatDate(doc.createdAt),
-    artTeacher: doc.artTeacher ?? "",
-    createdAt: doc.createdAt.toISOString(),
-    updatedAt: doc.updatedAt.toISOString(),
-  };
-}
 
 function buildFilter(params: {
   search?: string;
@@ -61,25 +26,36 @@ function buildFilter(params: {
   if (params.gender && params.gender !== "All") filter.gender = params.gender;
 
   const search = params.search?.trim();
-  const orConditions: Record<string, unknown>[] = [];
   if (search) {
     const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     const regex = new RegExp(escaped, "i");
-    orConditions.push(
+    filter.$or = [
       { fullName: regex },
       { email: regex },
       { className: regex },
       { currentCourse: regex },
-    );
-  }
-
-  if (orConditions.length === 1) {
-    Object.assign(filter, orConditions[0]);
-  } else if (orConditions.length > 1) {
-    filter.$or = orConditions;
+    ];
   }
 
   return filter;
+}
+
+function apiError(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : fallback;
+  const isMongo =
+    message.includes("MongoServerSelectionError") ||
+    message.includes("ENOTFOUND") ||
+    message.includes("ETIMEDOUT") ||
+    message.includes("timed out");
+  return NextResponse.json(
+    {
+      success: false,
+      error: isMongo
+        ? "Cannot reach MongoDB. Check your internet, Atlas IP whitelist, and MONGODB_URI in .env."
+        : message || fallback,
+    },
+    { status: isMongo ? 503 : 500 },
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -88,11 +64,6 @@ export async function GET(request: NextRequest) {
     if (!auth.ok) return auth.response;
 
     await dbConnect();
-
-    const senior = await SeniorTeacher.findById(auth.seniorTeacher.id);
-    if (!senior) {
-      return NextResponse.json({ success: false, error: "Senior teacher not found" }, { status: 404 });
-    }
 
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);
@@ -109,7 +80,8 @@ export async function GET(request: NextRequest) {
       Student.find(filter)
         .sort({ createdAt: -1 })
         .skip((page - 1) * PAGE_SIZE)
-        .limit(PAGE_SIZE),
+        .limit(PAGE_SIZE)
+        .lean(),
       Student.distinct("className", filter),
       Student.distinct("currentCourse", filter),
     ]);
@@ -119,16 +91,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        students: students.map(toStudentJson),
+        students: students.map(doc => toStudentJson(doc as StudentDocument)),
         pagination: { page, limit: PAGE_SIZE, total, totalPages },
         filterOptions: {
-          classes: classOptions.filter(Boolean).sort(),
-          courses: courseOptions.filter(Boolean).sort(),
+          classes: (classOptions as string[]).filter(Boolean).sort(),
+          courses: (courseOptions as string[]).filter(Boolean).sort(),
         },
       },
     });
   } catch (error) {
     console.error("[senior-teacher/students GET]", error);
-    return NextResponse.json({ success: false, error: "Failed to load students" }, { status: 500 });
+    return apiError(error, "Failed to load students");
   }
 }

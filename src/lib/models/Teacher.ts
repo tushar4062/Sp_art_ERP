@@ -29,6 +29,8 @@ export interface TeacherDocument extends mongoose.Document {
   classes: string[];
   status: 'Active' | 'Inactive';
   isSenior: boolean;
+  /** Senior teacher who manages this teacher record */
+  createdBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -63,9 +65,11 @@ const TeacherSchema = new mongoose.Schema<TeacherDocument>(
     classes: { type: [String], default: [] },
     status: { type: String, enum: ['Active', 'Inactive'], default: 'Active' },
     isSenior: { type: Boolean, default: false },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'SeniorTeacher', index: true },
   },
   {
     timestamps: true,
+    collection: 'teachers',
   }
 );
 

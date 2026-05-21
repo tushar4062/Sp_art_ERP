@@ -29,6 +29,8 @@ export interface StudentDocument extends mongoose.Document {
   artTeacher?: string;
   vanFacility: boolean;
   feeStatus: 'Paid' | 'Pending' | 'Overdue';
+  /** Senior teacher who manages this student record */
+  createdBy?: mongoose.Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -62,6 +64,7 @@ const StudentSchema = new mongoose.Schema<StudentDocument>({
   artTeacher: { type: String },
   vanFacility: { type: Boolean, default: false },
   feeStatus: { type: String, enum: ['Paid', 'Pending', 'Overdue'], default: 'Pending' },
+  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'SeniorTeacher', index: true },
 }, {
   timestamps: true,
   collection: 'students',

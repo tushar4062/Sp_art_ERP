@@ -13,6 +13,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { Skeleton } from "@/components/ui/skeleton";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
+import { parseJsonResponse } from "@/lib/api/parseJsonResponse";
 
 export type SeniorTeacherTeacherItem = {
   id: string;
@@ -155,12 +156,20 @@ export function SeniorTeacherTeachersPage() {
         experience: filterExperience,
       });
       const res = await fetch(`/api/senior-teacher/teachers?${params}`, { credentials: "include" });
-      const json = await res.json();
+      const json = await parseJsonResponse<{
+        error?: string;
+        data?: {
+          teachers: SeniorTeacherTeacherItem[];
+          pagination: Pagination;
+          filterOptions?: { subjects?: string[]; specializations?: string[] };
+        };
+      }>(res);
       if (res.status === 401) {
         router.push("/login");
         return;
       }
       if (!res.ok) throw new Error(json.error || "Failed to load teachers");
+      if (!json.data?.teachers) throw new Error("Invalid teachers response from server");
       setTeachers(json.data.teachers);
       setPagination(json.data.pagination);
       setSubjectOptions(json.data.filterOptions?.subjects ?? []);
@@ -193,7 +202,7 @@ export function SeniorTeacherTeachersPage() {
     setForm(null);
     try {
       const res = await fetch(`/api/senior-teacher/teachers/${id}`, { credentials: "include" });
-      const json = await res.json();
+      const json = await parseJsonResponse<{ error?: string; data?: { teacher: SeniorTeacherTeacherItem } }>(res);
       if (res.status === 401) {
         router.push("/login");
         return;
@@ -233,7 +242,11 @@ export function SeniorTeacherTeachersPage() {
           status: form.status,
         }),
       });
-      const json = await res.json();
+      const json = await parseJsonResponse<{
+        error?: string;
+        message?: string;
+        data?: { teacher: SeniorTeacherTeacherItem };
+      }>(res);
       if (res.status === 401) {
         router.push("/login");
         return;
@@ -351,7 +364,7 @@ export function SeniorTeacherTeachersPage() {
             <p className="text-lg font-display font-semibold text-foreground">No teachers found</p>
             <p className="text-sm text-muted-foreground mt-2 max-w-md mx-auto">
               {pagination.total === 0 && !debouncedSearch && filterStatus === "All"
-                ? "No teachers are registered under your account yet."
+                ? "No teachers found in the teachers collection yet."
                 : "Try adjusting your search or filters."}
             </p>
           </div>
