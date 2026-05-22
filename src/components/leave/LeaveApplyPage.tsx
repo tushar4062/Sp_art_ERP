@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatusPill } from "@/components/shared/StatusPill";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,10 @@ import { parseJsonResponse } from "@/lib/api/parseJsonResponse";
 import { messageFromUnknown } from "@/lib/errors/messageFromUnknown";
 import { leaveStatusPillClass } from "@/lib/leave/leaveStatusStyles";
 import { PAST_DATE_MESSAGE, todayDateString, validateLeaveDateRange } from "@/lib/leave/dateValidation";
+import { DUPLICATE_LEAVE_TOAST } from "@/lib/leave/duplicateLeave";
+import { submitLeaveRequest } from "@/lib/leave/submitLeaveRequest";
+
+const SUBMIT_DEBOUNCE_MS = 1500;
 
 type LeaveRow = {
   id: string;
@@ -53,25 +57,24 @@ export function LeaveApplyPage({
   const [leaveRequests, setLeaveRequests] = useState<LeaveRow[]>([]);
   const [balance, setBalance] = useState<Balance>({ casual: 6, sick: 8, personal: 3 });
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLockRef = useRef(false);
+  const lastSubmitAtRef = useRef(0);
+  const formRef = useRef(form);
+  formRef.current = form;
+
   const minLeaveDate = todayDateString();
   const toMinDate =
     form.from && form.from >= minLeaveDate ? form.from : minLeaveDate;
 
-  const handleAuthError = (res: Response) => {
-    if (res.status === 401) {
-      toast.error(`Please sign in again as ${loginRoleLabel}.`);
-      router.push("/login");
-      return true;
-    }
-    return false;
-  };
-
-  const load = useCallback(async () => {
-    setLoading(true);
+  const reloadLeaves = useCallback(async () => {
     try {
       const res = await fetch(apiPath, { credentials: "include" });
-      if (handleAuthError(res)) return;
+      if (res.status === 401) {
+        toast.error(`Please sign in again as ${loginRoleLabel}.`);
+        router.push("/login");
+        return;
+      }
       const json = await parseJsonResponse<{
         error?: string;
         data?: { leaves: LeaveRow[]; balance: Balance };
@@ -81,14 +84,109 @@ export function LeaveApplyPage({
       if (json.data?.balance) setBalance(json.data.balance);
     } catch (e) {
       toast.error(messageFromUnknown(e, "Failed to load leave data"));
-    } finally {
-      setLoading(false);
     }
-  }, [apiPath, loginRoleLabel, router, handleAuthError]);
+  }, [apiPath, loginRoleLabel, router]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+    const controller = new AbortController();
+
+    (async () => {
+      setLoading(true);
+      try {
+        const res = await fetch(apiPath, {
+          credentials: "include",
+          signal: controller.signal,
+        });
+        if (cancelled) return;
+        if (res.status === 401) {
+          toast.error(`Please sign in again as ${loginRoleLabel}.`);
+          router.push("/login");
+          return;
+        }
+        const json = await parseJsonResponse<{
+          error?: string;
+          data?: { leaves: LeaveRow[]; balance: Balance };
+        }>(res);
+        if (!res.ok) throw new Error(json.error || "Failed to load");
+        setLeaveRequests(json.data?.leaves ?? []);
+        if (json.data?.balance) setBalance(json.data.balance);
+      } catch (e) {
+        if (cancelled || (e instanceof DOMException && e.name === "AbortError")) return;
+        toast.error(messageFromUnknown(e, "Failed to load leave data"));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [apiPath, loginRoleLabel, router]);
+
+  const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (submitLockRef.current) return;
+
+    const now = Date.now();
+    if (now - lastSubmitAtRef.current < SUBMIT_DEBOUNCE_MS) return;
+
+    const payload = {
+      leaveType: formRef.current.type,
+      fromDate: formRef.current.from,
+      toDate: formRef.current.to,
+      reason: formRef.current.reason,
+    };
+
+    if (!payload.fromDate || !payload.toDate) {
+      toast.error("Pick dates");
+      return;
+    }
+
+    const dateCheck = validateLeaveDateRange(payload.fromDate, payload.toDate);
+    if (dateCheck.ok === false) {
+      toast.error(dateCheck.error);
+      return;
+    }
+
+    submitLockRef.current = true;
+    lastSubmitAtRef.current = now;
+    setIsSubmitting(true);
+
+    try {
+      const result = await submitLeaveRequest(apiPath, payload);
+
+      if (result.ok === false) {
+        if (result.kind === "auth") {
+          toast.error(`Please sign in again as ${loginRoleLabel}.`);
+          router.push("/login");
+          return;
+        }
+        if (result.kind === "duplicate") {
+          toast.error(DUPLICATE_LEAVE_TOAST);
+          return;
+        }
+        if (result.kind === "validation") {
+          toast.error(result.message);
+          return;
+        }
+        toast.error("Something went wrong");
+        return;
+      }
+
+      toast.success("Leave request submitted successfully");
+      setForm({ type: "Casual", from: "", to: "", reason: "" });
+      await reloadLeaves();
+    } catch {
+      toast.error("Something went wrong");
+    } finally {
+      submitLockRef.current = false;
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -124,115 +222,92 @@ export function LeaveApplyPage({
           <h3 className="font-display font-bold mb-3">Apply for leave</h3>
           <form
             className="space-y-3"
-            onSubmit={async e => {
-              e.preventDefault();
-              if (!form.from || !form.to) {
-                toast.error("Pick dates");
-                return;
-              }
-              const dateCheck = validateLeaveDateRange(form.from, form.to);
-              if (dateCheck.ok === false) {
-                toast.error(dateCheck.error);
-                return;
-              }
-              setSubmitting(true);
-              try {
-                const res = await fetch(apiPath, {
-                  method: "POST",
-                  credentials: "include",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    leaveType: form.type,
-                    fromDate: form.from,
-                    toDate: form.to,
-                    reason: form.reason,
-                  }),
-                });
-                if (handleAuthError(res)) return;
-                const json = await parseJsonResponse<{ error?: string; message?: string }>(res);
-                if (!res.ok) throw new Error(json.error || "Submit failed");
-                toast.success(json.message || "Leave request submitted!");
-                setForm({ type: "Casual", from: "", to: "", reason: "" });
-                void load();
-              } catch (err) {
-                toast.error(messageFromUnknown(err, "Failed to submit leave"));
-              } finally {
-                setSubmitting(false);
-              }
-            }}
+            onSubmit={handleSubmit}
+            aria-busy={isSubmitting}
+            noValidate
           >
-            <div className="space-y-1.5">
-              <Label>Type</Label>
-              <Select value={form.type} onValueChange={v => setForm(f => ({ ...f, type: v }))}>
-                <SelectTrigger className="rounded-xl">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Casual">Casual</SelectItem>
-                  <SelectItem value="Sick">Sick</SelectItem>
-                  <SelectItem value="Personal">Personal</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
+            <fieldset disabled={isSubmitting} className="space-y-3 border-0 p-0 m-0 min-w-0">
               <div className="space-y-1.5">
-                <Label>From</Label>
-                <Input
-                  type="date"
-                  className="rounded-xl"
-                  min={minLeaveDate}
-                  value={form.from}
-                  onChange={e => {
-                    const from = e.target.value;
-                    if (from && from < minLeaveDate) {
-                      toast.error(PAST_DATE_MESSAGE);
-                      return;
-                    }
-                    setForm(f => {
-                      let to = f.to;
-                      if (to && (to < from || to < minLeaveDate)) {
-                        to = from >= minLeaveDate ? from : "";
+                <Label>Type</Label>
+                <Select
+                  value={form.type}
+                  onValueChange={v => setForm(f => ({ ...f, type: v }))}
+                >
+                  <SelectTrigger className="rounded-xl">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Casual">Casual</SelectItem>
+                    <SelectItem value="Sick">Sick</SelectItem>
+                    <SelectItem value="Personal">Personal</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label>From</Label>
+                  <Input
+                    type="date"
+                    className="rounded-xl"
+                    min={minLeaveDate}
+                    value={form.from}
+                    onChange={e => {
+                      const from = e.target.value;
+                      if (from && from < minLeaveDate) {
+                        toast.error(PAST_DATE_MESSAGE);
+                        return;
                       }
-                      return { ...f, from, to };
-                    });
-                  }}
-                />
+                      setForm(f => {
+                        let to = f.to;
+                        if (to && (to < from || to < minLeaveDate)) {
+                          to = from >= minLeaveDate ? from : "";
+                        }
+                        return { ...f, from, to };
+                      });
+                    }}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>To</Label>
+                  <Input
+                    type="date"
+                    className="rounded-xl"
+                    min={toMinDate}
+                    value={form.to}
+                    onChange={e => {
+                      const to = e.target.value;
+                      if (to && to < minLeaveDate) {
+                        toast.error(PAST_DATE_MESSAGE);
+                        return;
+                      }
+                      setForm(f => ({ ...f, to }));
+                    }}
+                  />
+                </div>
               </div>
               <div className="space-y-1.5">
-                <Label>To</Label>
-                <Input
-                  type="date"
+                <Label>Reason</Label>
+                <Textarea
+                  rows={3}
                   className="rounded-xl"
-                  min={toMinDate}
-                  value={form.to}
-                  onChange={e => {
-                    const to = e.target.value;
-                    if (to && to < minLeaveDate) {
-                      toast.error(PAST_DATE_MESSAGE);
-                      return;
-                    }
-                    setForm(f => ({ ...f, to }));
-                  }}
+                  value={form.reason}
+                  onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
                 />
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Reason</Label>
-              <Textarea
-                rows={3}
-                className="rounded-xl"
-                value={form.reason}
-                onChange={e => setForm(f => ({ ...f, reason: e.target.value }))}
-              />
-            </div>
-            <Button
-              type="submit"
-              disabled={submitting}
-              className="w-full rounded-xl gradient-primary text-white border-0"
-            >
-              <Plus className="w-4 h-4 mr-1" />
-              {submitting ? "Submitting…" : "Submit"}
-            </Button>
+              <Button
+                type="submit"
+                disabled={isSubmitting}
+                aria-busy={isSubmitting}
+                className="w-full rounded-xl gradient-primary text-white border-0"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                ) : (
+                  <Plus className="w-4 h-4 mr-1" />
+                )}
+                {isSubmitting ? "Submitting..." : "Submit Request"}
+              </Button>
+            </fieldset>
           </form>
         </div>
       </div>

@@ -9,6 +9,10 @@ import {
   getOrCreateSeniorBalance,
   serializeSeniorLeave,
 } from "@/lib/leave/seniorTeacherUtils";
+import {
+  DUPLICATE_LEAVE_ERROR,
+  createLeaveWithDuplicateProtection,
+} from "@/lib/leave/duplicateLeave.server";
 import { getAdminNotifyEmails, sendSeniorTeacherNewLeaveEmails } from "@/lib/leave/leaveEmail";
 import type { LeaveType } from "@/lib/models/Leave";
 
@@ -67,18 +71,33 @@ export async function POST(request: NextRequest) {
 
     const daysCount = countLeaveDays(fromDate, toDate);
 
-    const doc = await SeniorTeacherLeave.create({
-      seniorTeacherId: senior._id,
-      seniorTeacherName: senior.fullName,
-      seniorTeacherEmail: (senior.email || "").toLowerCase(),
-      leaveType,
-      fromDate,
-      toDate,
-      reason: reason || "—",
-      status: "Pending",
-      adminRemark: "",
-      daysCount,
-    });
+    const created = await createLeaveWithDuplicateProtection(
+      SeniorTeacherLeave,
+      "seniorTeacherId",
+      auth.seniorTeacher.id,
+      { leaveType, fromDate, toDate, reason },
+      storedReason => ({
+        seniorTeacherId: senior._id,
+        seniorTeacherName: senior.fullName,
+        seniorTeacherEmail: (senior.email || "").toLowerCase(),
+        leaveType,
+        fromDate,
+        toDate,
+        reason: storedReason,
+        status: "Pending",
+        adminRemark: "",
+        daysCount,
+      }),
+    );
+
+    if (!created.ok) {
+      return NextResponse.json(
+        { success: false, error: DUPLICATE_LEAVE_ERROR, code: "DUPLICATE_LEAVE" },
+        { status: 409 },
+      );
+    }
+
+    const doc = created.doc;
 
     const notifyEmails = [...getAdminNotifyEmails()];
     const emailFields = {

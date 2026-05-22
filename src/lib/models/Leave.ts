@@ -39,6 +39,15 @@ const LeaveSchema = new mongoose.Schema<LeaveDocument>(
   { timestamps: true, collection: "leaves" },
 );
 
+LeaveSchema.index(
+  { teacherId: 1, leaveType: 1, fromDate: 1, toDate: 1, reason: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: "Pending" },
+    name: "unique_teacher_pending_leave",
+  },
+);
+
 const LeaveModel =
   (mongoose.models.Leave as mongoose.Model<LeaveDocument> | undefined) ??
   mongoose.model<LeaveDocument>("Leave", LeaveSchema);

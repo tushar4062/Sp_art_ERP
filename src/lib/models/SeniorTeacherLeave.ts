@@ -44,6 +44,15 @@ const SeniorTeacherLeaveSchema = new mongoose.Schema<SeniorTeacherLeaveDocument>
   { timestamps: true, collection: "senior_teacher_leaves" },
 );
 
+SeniorTeacherLeaveSchema.index(
+  { seniorTeacherId: 1, leaveType: 1, fromDate: 1, toDate: 1, reason: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: "Pending" },
+    name: "unique_senior_teacher_pending_leave",
+  },
+);
+
 const SeniorTeacherLeaveModel =
   (mongoose.models.SeniorTeacherLeave as mongoose.Model<SeniorTeacherLeaveDocument> | undefined) ??
   mongoose.model<SeniorTeacherLeaveDocument>("SeniorTeacherLeave", SeniorTeacherLeaveSchema);

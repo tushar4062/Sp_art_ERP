@@ -9,6 +9,10 @@ import {
   getOrCreateBalance,
   serializeLeave,
 } from "@/lib/leave/utils";
+import {
+  DUPLICATE_LEAVE_ERROR,
+  createLeaveWithDuplicateProtection,
+} from "@/lib/leave/duplicateLeave.server";
 import { getAdminNotifyEmails, sendNewLeaveRequestEmails } from "@/lib/leave/leaveEmail";
 import type { LeaveType } from "@/lib/models/Leave";
 
@@ -67,18 +71,33 @@ export async function POST(request: NextRequest) {
 
     const daysCount = countLeaveDays(fromDate, toDate);
 
-    const doc = await Leave.create({
-      teacherId: teacher._id,
-      teacherName: teacher.fullName,
-      teacherEmail: (teacher.email || "").toLowerCase(),
-      leaveType,
-      fromDate,
-      toDate,
-      reason: reason || "—",
-      status: "Pending",
-      adminRemark: "",
-      daysCount,
-    });
+    const created = await createLeaveWithDuplicateProtection(
+      Leave,
+      "teacherId",
+      auth.teacher.id,
+      { leaveType, fromDate, toDate, reason },
+      storedReason => ({
+        teacherId: teacher._id,
+        teacherName: teacher.fullName,
+        teacherEmail: (teacher.email || "").toLowerCase(),
+        leaveType,
+        fromDate,
+        toDate,
+        reason: storedReason,
+        status: "Pending",
+        adminRemark: "",
+        daysCount,
+      }),
+    );
+
+    if (!created.ok) {
+      return NextResponse.json(
+        { success: false, error: DUPLICATE_LEAVE_ERROR, code: "DUPLICATE_LEAVE" },
+        { status: 409 },
+      );
+    }
+
+    const doc = created.doc;
 
     const notifyEmails = [...getAdminNotifyEmails()];
 
