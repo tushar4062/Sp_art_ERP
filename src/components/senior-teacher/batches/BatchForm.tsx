@@ -118,9 +118,13 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
         const res = await fetch("/api/courses");
         const json = await res.json();
         if (res.ok && Array.isArray(json.courses)) {
-          const options = Array.from(new Set<string>(json.courses
-            .map((course: any) => course.courseTitle)
-            .filter((title: unknown): title is string => typeof title === "string")));
+          const options = Array.from(
+            new Set<string>(
+              (json.courses as { courseTitle?: string }[])
+                .map(course => course.courseTitle)
+                .filter((title): title is string => typeof title === "string"),
+            ),
+          );
           const currentCourse = form.getValues("courseName");
           if (currentCourse && !options.includes(currentCourse)) {
             options.unshift(currentCourse);
