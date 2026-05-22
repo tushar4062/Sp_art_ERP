@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface BatchCard {
@@ -80,29 +80,40 @@ export default function TeacherAttendancePage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {batches.map((batch) => (
-            <button
+            <Card
               key={batch._id}
-              onClick={() => router.push(`/teacher/attendance/${batch._id}`)}
-              className="group rounded-3xl border border-border bg-gradient-to-r from-primary/5 to-primary/10 p-6 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+              className="rounded-3xl border border-border bg-gradient-to-r from-primary/5 to-primary/10 shadow-sm"
             >
-              <div className="mb-4 flex items-center justify-between">
-                <div>
-                  <p className="text-sm uppercase tracking-[0.24em] text-muted-foreground">Batch</p>
+              <CardHeader className="pb-0">
+                <div className="flex flex-col gap-2">
+                  <p className="text-xs uppercase tracking-[0.3em] text-muted-foreground">Batch</p>
                   <h2 className="text-2xl font-semibold tracking-tight">{batch.batchName}</h2>
                 </div>
-                <div className="rounded-full bg-white/80 px-3 py-1 text-sm font-medium text-muted-foreground">
+                <div className="rounded-full bg-white/90 px-3 py-1 text-sm font-medium text-muted-foreground">
                   {batch.totalStudents} {batch.totalStudents === 1 ? "Student" : "Students"}
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="rounded-xl bg-white/60 p-4">
-                  <p className="text-sm font-medium">{batch.courseName}</p>
-                  <p className="text-sm text-muted-foreground mt-1">{batch.batchDay}</p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-3xl bg-white/70 p-4">
+                  <p className="text-sm font-semibold">Course</p>
+                  <p className="text-base font-medium">{batch.courseName}</p>
+                </div>
+                <div className="rounded-3xl bg-white/70 p-4">
+                  <p className="text-sm font-semibold">Schedule</p>
+                  <p className="text-sm text-muted-foreground">{batch.batchDay}</p>
                   <p className="text-sm text-muted-foreground">{batch.batchTime}</p>
                 </div>
-              </div>
-            </button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="rounded-full"
+                  onClick={() => router.push(`/teacher/attendance/${batch._id}`)}
+                >
+                  Attendance Report
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
+              </CardContent>
+            </Card>
           ))}
         </div>
       )}

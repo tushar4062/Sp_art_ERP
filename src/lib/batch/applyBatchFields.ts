@@ -1,5 +1,6 @@
 import type { BatchWriteInput } from "@/lib/validators/batch";
 import type { BatchDocument } from "@/lib/models/Batch";
+import mongoose from "mongoose";
 
 export function generateBatchCode(batchName: string): string {
   const slug = batchName
@@ -33,15 +34,21 @@ export function applyBatchWriteToDocument(batch: BatchDocument, data: BatchWrite
 
   batch.set(
     "students",
-    data.students.map(s => ({
-      studentName: s.studentName,
-      studentEmail: s.studentEmail || "",
-      phone: s.phone || "",
-      course: s.course || "",
-      batchDay: s.batchDay || "",
-      batchTime: s.batchTime || "",
-      startMonth: s.startMonth || "",
-      endMonth: s.endMonth || "",
-    })),
+    data.students.map(s => {
+      const studentObj: any = {
+        studentName: s.studentName,
+        studentEmail: s.studentEmail || "",
+        phone: s.phone || "",
+        course: s.course || "",
+        batchDay: s.batchDay || "",
+        batchTime: s.batchTime || "",
+        startMonth: s.startMonth || "",
+        endMonth: s.endMonth || "",
+      };
+      if (s.studentId && mongoose.Types.ObjectId.isValid(s.studentId)) {
+        studentObj.studentId = new mongoose.Types.ObjectId(s.studentId);
+      }
+      return studentObj;
+    }),
   );
 }

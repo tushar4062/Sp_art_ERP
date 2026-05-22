@@ -218,7 +218,7 @@ export function RoleLayout({ navItems, role, children }: { navItems: NavItem[]; 
             </div>
           </div>
         </header>
-        <main className="flex-1 p-4 sm:p-6 max-w-full">
+        <main className="flex-1 min-h-0 p-4 sm:p-6 max-w-full">
           {children}
         </main>
       </div>

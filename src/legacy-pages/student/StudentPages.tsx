@@ -16,7 +16,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSunday } from "d
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { CLASSES } from "@/data/mockData";
-export { ChatPage } from "@/pages/senior-teacher/SeniorTeacherPages";
+export { ChatPage } from "@/legacy-pages/senior-teacher/SeniorTeacherPages";
 
 function useMe() {
   const { user } = useAuth();
@@ -161,31 +161,18 @@ export function StudentAttendance() {
   return (
     <div className="space-y-6">
       <PageHeader title="My Attendance" subtitle={format(today,"MMMM yyyy")} />
-      <div className="grid lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 card-soft p-5">
-          <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold text-muted-foreground mb-2">
-            {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => <div key={d}>{d}</div>)}
-          </div>
-          <div className="grid grid-cols-7 gap-2">
-            {Array.from({ length: days[0].getDay() }).map((_, i) => <div key={i} />)}
-            {days.map(d => {
-              const key = format(d, "yyyy-MM-dd");
-              const st = map[key];
-              const cls = st === "Present" ? "bg-success text-success-foreground" : st === "Late" ? "bg-warning text-warning-foreground" : st === "Absent" ? "bg-destructive text-destructive-foreground" : isSunday(d) ? "bg-muted text-muted-foreground" : "bg-muted/40";
-              return <div key={key} className={`aspect-square rounded-lg grid place-items-center text-sm font-bold ${cls}`}>{format(d,"d")}</div>;
-            })}
-          </div>
+      <div className="card-soft p-5">
+        <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold text-muted-foreground mb-2">
+          {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => <div key={d}>{d}</div>)}
         </div>
-        <div className="space-y-3">
-          <div className="card-soft p-5 text-center">
-            <div className="text-xs text-muted-foreground font-semibold">Monthly attendance</div>
-            <div className="font-display font-bold text-5xl text-success mt-2">{pct}%</div>
-          </div>
-          <div className="card-soft p-4 space-y-2 text-sm">
-            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-success" /> Present</div>
-            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-warning" /> Late</div>
-            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-destructive" /> Absent</div>
-          </div>
+        <div className="grid grid-cols-7 gap-2">
+          {Array.from({ length: days[0].getDay() }).map((_, i) => <div key={i} />)}
+          {days.map(d => {
+            const key = format(d, "yyyy-MM-dd");
+            const st = map[key];
+            const cls = st === "Present" ? "bg-success text-success-foreground" : st === "Late" ? "bg-warning text-warning-foreground" : st === "Absent" ? "bg-destructive text-destructive-foreground" : isSunday(d) ? "bg-muted text-muted-foreground" : "bg-muted/40";
+            return <div key={key} className={`aspect-square rounded-lg grid place-items-center text-sm font-bold ${cls}`}>{format(d,"d")}</div>;
+          })}
         </div>
       </div>
     </div>

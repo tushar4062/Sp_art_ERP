@@ -1,4 +1,4 @@
-import NotFound from "@/pages/NotFound";
+import NotFound from "@/legacy-pages/NotFound";
 
 export default function NotFoundPage() {
   return <NotFound />;

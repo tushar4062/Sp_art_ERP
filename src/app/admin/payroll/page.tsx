@@ -1,4 +1,4 @@
-import Payroll from "@/pages/admin/Payroll";
+import Payroll from "@/legacy-pages/admin/Payroll";
 
 export default function PayrollPage() {
   return <Payroll />;

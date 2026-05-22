@@ -214,7 +214,7 @@ export default function StudentsPage() {
     if (age !== form.age) {
       setForm(current => ({ ...current, age }));
     }
-  }, [form.dob]);
+  }, [form.dob, form.age]);
 
   const openAddStudent = () => {
     setEditingStudent(null);

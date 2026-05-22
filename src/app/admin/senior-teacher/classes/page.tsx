@@ -1,4 +1,4 @@
-import { MyClasses } from "@/pages/senior-teacher/SeniorTeacherPages";
+import { MyClasses } from "@/legacy-pages/senior-teacher/SeniorTeacherPages";
 
 export default function AdminSeniorTeacherClassesPage() {
   return <MyClasses />;

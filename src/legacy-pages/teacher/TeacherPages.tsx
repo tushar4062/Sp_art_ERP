@@ -17,7 +17,7 @@ import { useStore, actions } from "@/store/dataStore";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { TeacherAttendancePage } from "@/components/teacher/TeacherAttendancePage";
-export { ChatPage } from "@/pages/senior-teacher/SeniorTeacherPages";
+export { ChatPage } from "@/legacy-pages/senior-teacher/SeniorTeacherPages";
 
 export function TeacherDashboard() {
   const students = useStore(s => s.students);

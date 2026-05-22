@@ -76,7 +76,7 @@ export function AttendanceReportsPage({
         /* optional */
       }
     })();
-  }, []);
+  }, [batchesUrl, portal]);
 
   const load = useCallback(async () => {
     setLoading(true);

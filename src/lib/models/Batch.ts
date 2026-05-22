@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 /** Embedded roster line — same person may appear multiple times. */
 export interface BatchEmbeddedStudent {
   _id: mongoose.Types.ObjectId;
+  studentId?: mongoose.Types.ObjectId;
   studentName: string;
   studentEmail: string;
   phone: string;
@@ -51,6 +52,7 @@ export interface BatchDocument extends mongoose.Document {
 
 const BatchStudentSchema = new mongoose.Schema(
   {
+    studentId: { type: mongoose.Schema.Types.ObjectId, ref: "Student", default: null },
     studentName: { type: String, required: true, trim: true },
     studentEmail: { type: String, default: "", trim: true },
     phone: { type: String, default: "", trim: true },

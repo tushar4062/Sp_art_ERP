@@ -23,7 +23,7 @@
     "baseUrl": ".",
     "paths": {
       "@/pages/*": [
-        "./src/legacy-pages/*"
+        "./src/pages/*"
       ],
       "@/admin-pages/*": [
         "./src/pages/admin/*"

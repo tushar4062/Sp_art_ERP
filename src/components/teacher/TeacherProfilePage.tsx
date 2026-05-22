@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Home, Pencil, Save, UploadCloud, User } from "lucide-react";
+import { Home, Pencil, Save, UploadCloud, User, Calendar } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -240,6 +240,13 @@ export function TeacherProfilePage() {
             )}
             <Button variant="outline" className="rounded-xl" onClick={() => router.push("/teacher")}>
               <Home className="w-4 h-4 mr-1" /> Home
+            </Button>
+            <Button
+              variant="ghost"
+              className="rounded-xl"
+              onClick={() => router.push("/teacher/profile/attendance-report")}
+            >
+              <Calendar className="w-4 h-4 mr-1" /> Attendance Report
             </Button>
           </div>
 

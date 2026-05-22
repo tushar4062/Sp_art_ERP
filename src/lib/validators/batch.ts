@@ -10,6 +10,7 @@ export const BATCH_DAY_OPTIONS = [
 ] as const;
 
 export const batchStudentInputSchema = z.object({
+  studentId: z.string().trim().optional().default(""),
   studentName: z.string().trim().min(1, "Student name is required"),
   studentEmail: z
     .string()

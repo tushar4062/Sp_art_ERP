@@ -1,4 +1,4 @@
-import Certificates from "@/pages/admin/Certificates";
+import Certificates from "@/legacy-pages/admin/Certificates";
 
 export default function CertificatesPage() {
   return <Certificates />;

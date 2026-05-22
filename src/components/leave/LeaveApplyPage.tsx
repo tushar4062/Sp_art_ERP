@@ -54,14 +54,14 @@ export function LeaveApplyPage({
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  const handleAuthError = (res: Response) => {
+  const handleAuthError = useCallback((res: Response) => {
     if (res.status === 401) {
       toast.error(`Please sign in again as ${loginRoleLabel}.`);
       router.push("/login");
       return true;
     }
     return false;
-  };
+  }, [loginRoleLabel, router]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -80,7 +80,7 @@ export function LeaveApplyPage({
     } finally {
       setLoading(false);
     }
-  }, [apiPath, loginRoleLabel, router]);
+  }, [apiPath, handleAuthError]);
 
   useEffect(() => {
     void load();

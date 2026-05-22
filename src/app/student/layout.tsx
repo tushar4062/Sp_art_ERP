@@ -2,7 +2,7 @@
 
 import { ReactNode } from "react";
 import {
-  LayoutDashboard, CalendarDays, Star, ClipboardList, ClipboardCheck, Wallet, Award, MessageSquareHeart, MessageSquare, User
+  LayoutDashboard, CalendarDays, Star, ClipboardList, Wallet, Award, MessageSquareHeart, MessageSquare, User
 } from "lucide-react";
 import { RoleLayout, NavItem } from "@/components/layouts/RoleLayout";
 import { RequireRole } from "@/components/layouts/RoleLayout";
@@ -13,7 +13,7 @@ const studentNav: NavItem[] = [
   { to: "/student/classes", label: "My Classes", icon: CalendarDays },
   { to: "/student/scores", label: "My Scores", icon: Star },
   { to: "/student/request-slot", label: "Request Slot", icon: ClipboardList },
-  { to: "/student/attendance", label: "Attendance", icon: ClipboardCheck },
+  { to: "/student/attendance", label: "Attendance", icon: ClipboardList },
   { to: "/student/fees", label: "Fees", icon: Wallet },
   { to: "/student/certificates", label: "Certificates", icon: Award },
   { to: "/student/feedback", label: "Feedback", icon: MessageSquareHeart },

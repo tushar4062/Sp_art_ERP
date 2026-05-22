@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CalendarDays, Wallet, Award, Clock, CreditCard, Download, Send, AlarmClock } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { StatCard } from "@/components/shared/StatCard";
@@ -14,7 +14,7 @@ import { useStore, actions, type Student } from "@/store/dataStore";
 import { CertificatePreview } from "@/pages/admin/Certificates";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSunday } from "date-fns";
 import { toast } from "sonner";
-export { ChatPage } from "@/pages/senior-teacher/SeniorTeacherPages";
+export { ChatPage } from "@/legacy-pages/senior-teacher/SeniorTeacherPages";
 
 function useMe() {
   const students = useStore(s => s.students);
@@ -146,41 +146,204 @@ export function RequestSlot() {
 }
 
 export function StudentAttendance() {
-  const me = useMe();
-  const att = makeAttendance(0);
-  const map = Object.fromEntries(att.map(a => [a.date, a.status]));
-  const today = new Date();
-  const days = eachDayOfInterval({ start: startOfMonth(today), end: endOfMonth(today) });
-  const pct = Math.round(att.filter(a => a.status === "Present").length / att.length * 100);
+  const [batches, setBatches] = useState<any[]>([]);
+  const [selectedBatchId, setSelectedBatchId] = useState<string | null>(null);
+  const [month, setMonth] = useState(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  });
+  const [loading, setLoading] = useState(true);
+  const [attendanceData, setAttendanceData] = useState<any>(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
 
+  useEffect(() => {
+    const fetchBatches = async () => {
+      try {
+        setLoading(true);
+        const res = await fetch("/api/student/attendance/report?month=" + month, { credentials: "include" });
+        const data = await res.json();
+        if (data.success && data.allocatedBatches) {
+          setBatches(data.allocatedBatches);
+        }
+      } catch (error) {
+        console.error("Failed to fetch batches:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBatches();
+  }, []);
+
+  const handleAttendanceReportClick = async (batchId: string) => {
+    setSelectedBatchId(batchId);
+    await fetchAttendanceForBatch(batchId, month);
+  };
+
+  const fetchAttendanceForBatch = async (batchId: string, selectedMonth: string) => {
+    try {
+      setAttendanceLoading(true);
+      const res = await fetch(`/api/student/attendance/report?month=${selectedMonth}`, { credentials: "include" });
+      const data = await res.json();
+      if (data.success) {
+        setAttendanceData(data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch attendance:", error);
+    } finally {
+      setAttendanceLoading(false);
+    }
+  };
+
+  const handleMonthChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newMonth = e.target.value;
+    setMonth(newMonth);
+    if (selectedBatchId) {
+      await fetchAttendanceForBatch(selectedBatchId, newMonth);
+    }
+  };
+
+  // If batch selected and attendance data loaded, show calendar
+  if (selectedBatchId && attendanceData) {
+    return <StudentAttendanceCalendar 
+      batchId={selectedBatchId}
+      month={month}
+      onMonthChange={handleMonthChange}
+      onBackClick={() => {
+        setSelectedBatchId(null);
+        setAttendanceData(null);
+      }}
+      attendanceData={attendanceData}
+    />;
+  }
+
+  // Otherwise show batch cards
   return (
     <div className="space-y-6">
-      <PageHeader title="My Attendance" subtitle={format(today,"MMMM yyyy")} />
-      <div className="grid lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 card-soft p-5">
-          <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold text-muted-foreground mb-2">
-            {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => <div key={d}>{d}</div>)}
-          </div>
-          <div className="grid grid-cols-7 gap-2">
-            {Array.from({ length: days[0].getDay() }).map((_, i) => <div key={i} />)}
-            {days.map(d => {
-              const key = format(d, "yyyy-MM-dd");
-              const st = map[key];
-              const cls = st === "Present" ? "bg-success text-success-foreground" : st === "Late" ? "bg-warning text-warning-foreground" : st === "Absent" ? "bg-destructive text-destructive-foreground" : isSunday(d) ? "bg-muted text-muted-foreground" : "bg-muted/40";
-              return <div key={key} className={`aspect-square rounded-lg grid place-items-center text-sm font-bold ${cls}`}>{format(d,"d")}</div>;
-            })}
-          </div>
+      <PageHeader title="My Attendance" subtitle="Select a batch to view attendance" />
+      
+      {loading ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="card-soft h-64 animate-pulse" />
+          ))}
         </div>
-        <div className="space-y-3">
-          <div className="card-soft p-5 text-center">
-            <div className="text-xs text-muted-foreground font-semibold">Monthly attendance</div>
-            <div className="font-display font-bold text-5xl text-success mt-2">{pct}%</div>
-          </div>
-          <div className="card-soft p-4 space-y-2 text-sm">
-            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-success" /> Present</div>
-            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-warning" /> Late</div>
-            <div className="flex items-center gap-2"><span className="w-3 h-3 rounded bg-destructive" /> Absent</div>
-          </div>
+      ) : batches.length === 0 ? (
+        <div className="card-soft p-8 text-center">
+          <div className="text-muted-foreground">No batches allocated</div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {batches.map((batch) => (
+            <div key={batch.batchId} className="card-soft p-5 hover:shadow-md transition-shadow">
+              <div className="space-y-3">
+                <div>
+                  <div className="font-display font-bold text-lg">{batch.batchName}</div>
+                  <div className="text-sm text-muted-foreground mt-1">{batch.courseName || "Course"}</div>
+                </div>
+                
+                <div className="space-y-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">📅</span>
+                    <span>{batch.batchDay || "Days not set"}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">🕐</span>
+                    <span>{batch.batchTime || batch.batchTiming || "Timing not set"}</span>
+                  </div>
+                </div>
+
+                <Button 
+                  onClick={() => handleAttendanceReportClick(batch.batchId)}
+                  className="w-full rounded-lg gradient-primary text-white border-0"
+                >
+                  📊 Attendance Report
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StudentAttendanceCalendar({ 
+  batchId, 
+  month, 
+  onMonthChange, 
+  onBackClick, 
+  attendanceData 
+}: {
+  batchId: string;
+  month: string;
+  onMonthChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onBackClick: () => void;
+  attendanceData: any;
+}) {
+  // Filter attendance records for this batch only
+  const batchRecords = (attendanceData.records || []).filter((r: any) => r.batchId === batchId);
+  const map = Object.fromEntries(batchRecords.map((a: any) => [a.date, a.status]));
+  
+  const [year, monthNumber] = month.split("-").map(Number);
+  const firstDay = new Date(year, monthNumber - 1, 1).getDay();
+  const daysInMonth = new Date(year, monthNumber, 0).getDate();
+  
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const emptyDays = Array.from({ length: firstDay });
+
+  const summary = {
+    present: batchRecords.filter((r: any) => r.status === "Present").length,
+    absent: batchRecords.filter((r: any) => r.status === "Absent").length,
+    late: batchRecords.filter((r: any) => r.status === "Late").length,
+    total: batchRecords.length,
+  };
+  
+  const percentage = summary.total > 0 ? Math.round((summary.present / summary.total) * 100) : 0;
+
+  const getDateClass = (day: number) => {
+    const dateStr = `${year}-${String(monthNumber).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    const st = map[dateStr];
+    
+    if (st === "Present") return "bg-success text-success-foreground";
+    if (st === "Late") return "bg-warning text-warning-foreground";
+    if (st === "Absent") return "bg-destructive text-destructive-foreground";
+    return "bg-muted/40";
+  };
+
+  const selectedBatch = attendanceData.allocatedBatches?.find((b: any) => b.batchId === batchId);
+
+  return (
+    <div className="flex h-full min-h-0 flex-1 flex-col space-y-4 overflow-hidden">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <Button variant="ghost" size="sm" onClick={onBackClick}>← Back to batches</Button>
+        <div className="text-center">
+          <div className="font-display font-bold text-sm">{selectedBatch?.batchName}</div>
+          <div className="text-[11px] text-muted-foreground">{selectedBatch?.courseName}</div>
+        </div>
+        <input 
+          type="month" 
+          value={month} 
+          onChange={onMonthChange}
+          className="rounded-lg border border-border px-3 py-1 text-xs"
+        />
+      </div>
+
+      <div className="card-soft flex-1 min-h-0 overflow-hidden p-3">
+        <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold text-muted-foreground mb-2">
+          {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => <div key={d}>{d}</div>)}
+        </div>
+        <div className="grid h-full grid-cols-7 grid-rows-6 gap-1">
+          {emptyDays.map((_, i) => <div key={`empty-${i}`} className="rounded-md" />)}
+          {days.map(day => {
+            const dateStr = `${year}-${String(monthNumber).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+            const st = map[dateStr];
+            const cls = getDateClass(day);
+            return (
+              <div key={dateStr} className={`rounded-md grid place-items-center text-[11px] font-semibold ${cls}`}>
+                {day}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>

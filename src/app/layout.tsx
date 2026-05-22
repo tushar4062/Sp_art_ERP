@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { Metadata } from "next";
 import { ClientProviders } from "./client-providers";
 import "@/index.css";

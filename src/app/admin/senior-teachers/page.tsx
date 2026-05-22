@@ -175,7 +175,7 @@ export default function SeniorTeachersPage() {
     if (age !== form.age) {
       setForm((current) => ({ ...current, age }));
     }
-  }, [form.dob]);
+  }, [form.dob, form.age]);
 
   const openAddTeacher = () => {
     setEditingTeacher(null);

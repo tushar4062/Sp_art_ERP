@@ -209,7 +209,7 @@ export function StudentProfilePage() {
         </div>
 
         <div className="p-6 space-y-6">
-          <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
             {!editing ? (
               <Button className="rounded-xl gradient-primary text-white border-0" onClick={() => setEditing(true)}>
                 <Pencil className="w-4 h-4 mr-1" /> Edit Profile
@@ -231,6 +231,7 @@ export function StudentProfilePage() {
             <Button variant="outline" className="rounded-xl" onClick={() => router.push("/student/dashboard")}>
               <Home className="w-4 h-4 mr-1" /> Home
             </Button>
+
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
