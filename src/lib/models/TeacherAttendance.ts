@@ -6,6 +6,8 @@ export type TeacherAttendanceStatus = "Present" | "Absent" | "Half Day";
 export interface TeacherAttendanceDocument extends mongoose.Document {
   /** Staff user id (teacher or senior teacher MongoDB _id) */
   teacherId: mongoose.Types.ObjectId;
+  /** Denormalized display name at time of marking */
+  userName?: string;
   role: StaffAttendanceRole;
   batchId: mongoose.Types.ObjectId;
   batchName: string;
@@ -20,6 +22,7 @@ export interface TeacherAttendanceDocument extends mongoose.Document {
 const TeacherAttendanceSchema = new mongoose.Schema<TeacherAttendanceDocument>(
   {
     teacherId: { type: mongoose.Schema.Types.ObjectId, required: true, index: true },
+    userName: { type: String, default: "", trim: true },
     role: {
       type: String,
       enum: ["teacher", "senior-teacher"],

@@ -8,6 +8,7 @@ import { requireSeniorTeacherFromRequest } from "@/lib/auth/require-senior-teach
 import { seniorCanAccessBatch } from "@/lib/attendance/batchScope";
 import { teacherAttendanceMarkSchema } from "@/lib/validators/teacherAttendance";
 import { serializeTeacherAttendance } from "@/lib/serializers/teacherAttendanceSerialize";
+import { resolveStaffName } from "@/lib/attendance/staffSelfAttendance";
 
 export const runtime = "nodejs";
 
@@ -137,8 +138,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
+    const userName = await resolveStaffName("senior-teacher", auth.seniorTeacher.id);
     const doc = await TeacherAttendance.create({
       teacherId: userOid,
+      userName,
       role: "senior-teacher",
       batchId: batchOid,
       batchName: batch.batchName,

@@ -31,6 +31,7 @@ type Summary = {
   present: number;
   absent: number;
   halfDay: number;
+  attendancePercentage?: number;
   page: number;
   limit: number;
   totalPages: number;
@@ -152,12 +153,17 @@ export function AdminStaffAttendanceReportPage({
         }
       />
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
         {[
           { label: "Total records", value: summary?.total ?? 0, icon: BarChart3 },
           { label: "Present", value: summary?.present ?? 0, icon: CheckCircle2 },
           { label: "Absent", value: summary?.absent ?? 0, icon: XCircle },
           { label: "Half day", value: summary?.halfDay ?? 0, icon: Clock },
+          {
+            label: "Attendance %",
+            value: summary?.attendancePercentage != null ? `${summary.attendancePercentage}%` : "—",
+            icon: BarChart3,
+          },
         ].map(item => (
           <Card key={item.label} className="rounded-3xl border border-border">
             <CardHeader className="flex flex-row items-center justify-between pb-2">

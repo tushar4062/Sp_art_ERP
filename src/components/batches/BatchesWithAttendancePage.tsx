@@ -1,9 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight, Eye, Search, Clock, Users, BookOpen, Boxes } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Search,
+  Clock,
+  Users,
+  BookOpen,
+  Boxes,
+  CalendarDays,
+  Loader2,
+} from "lucide-react";
+import { StatusPill } from "@/components/shared/StatusPill";
+import { cn } from "@/lib/utils";
+import { format, parseISO } from "date-fns";
+import { todayDateString } from "@/lib/leave/dateValidation";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,7 +52,7 @@ const PORTAL_DEFAULTS: Record<
     emptyDescription: "When a senior teacher assigns you to a batch, it will appear here automatically.",
     listApiPath: "/api/teacher/batches",
     useBatchFetch: false,
-    showHalfDay: false,
+    showHalfDay: true,
     pageSize: 200,
   },
   "senior-teacher": {
@@ -222,7 +237,14 @@ function BatchAttendanceControls({
         disabled={saving || !draft.status}
         onClick={onSave}
       >
-        {saving ? "Saving…" : "Save"}
+        {saving ? (
+          <>
+            <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin inline" />
+            Saving…
+          </>
+        ) : (
+          "Save"
+        )}
       </Button>
     </div>
   );
@@ -260,6 +282,9 @@ export function BatchesWithAttendancePage({
   const [filterCourse, setFilterCourse] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
   const [page, setPage] = useState(1);
+  const [panelBatchId, setPanelBatchId] = useState("");
+  const [panelSubmitting, setPanelSubmitting] = useState(false);
+  const todayIso = todayDateString();
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(search.trim()), 300);
@@ -316,6 +341,26 @@ export function BatchesWithAttendancePage({
     void load();
   }, [load]);
 
+  const unmarkedBatches = useMemo(
+    () => batches.filter(b => !b.todayAttendance?.alreadyMarked),
+    [batches],
+  );
+  const panelBatch = batches.find(b => b.id === panelBatchId);
+  const panelAlreadyMarked = panelBatch?.todayAttendance?.alreadyMarked ?? false;
+
+  useEffect(() => {
+    if (!panelBatchId && batches.length > 0) {
+      const first = unmarkedBatches[0] ?? batches[0];
+      setPanelBatchId(first.id);
+    }
+  }, [batches, panelBatchId, unmarkedBatches]);
+
+  useEffect(() => {
+    if (!panelBatchId || !panelAlreadyMarked) return;
+    const next = unmarkedBatches.find(b => b.id !== panelBatchId);
+    if (next) setPanelBatchId(next.id);
+  }, [batches, panelBatchId, panelAlreadyMarked, unmarkedBatches]);
+
   const saveAttendance = async (batchId: string) => {
     const draft = drafts[batchId];
     if (!draft?.status) {
@@ -359,7 +404,49 @@ export function BatchesWithAttendancePage({
     }
   };
 
+  const markTodayFromBar = async (status: AttendanceStatus) => {
+    if (!panelBatchId) {
+      toast.error("Select a batch first");
+      return;
+    }
+    if (panelAlreadyMarked) {
+      toast.error("Attendance already marked for today");
+      return;
+    }
+
+    setPanelSubmitting(true);
+    try {
+      const attendanceUrl = myAttendancePath(portal, panelBatchId);
+      const res = useBatchFetch
+        ? await batchFetch(attendanceUrl, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status, remarks: "" }),
+          })
+        : await fetch(attendanceUrl, {
+            method: "POST",
+            credentials: "include",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ status, remarks: "" }),
+          });
+      const json = await parseJsonResponse<{ error?: string; message?: string }>(res);
+      if (res.status === 409) {
+        toast.error(json.error || "Attendance already marked for today");
+        void load();
+        return;
+      }
+      if (!res.ok) throw new Error(json.error || "Save failed");
+      toast.success(`Marked ${status} for today`);
+      await load();
+    } catch (e) {
+      toast.error(messageFromUnknown(e, "Failed to save attendance"));
+    } finally {
+      setPanelSubmitting(false);
+    }
+  };
+
   const pageNumbers = Array.from({ length: pagination.totalPages }, (_, i) => i + 1);
+  const markedTodayCount = batches.filter(b => b.todayAttendance?.alreadyMarked).length;
 
   return (
     <div className="space-y-6">
@@ -372,6 +459,121 @@ export function BatchesWithAttendancePage({
         }
         action={headerAction}
       />
+
+      <div className="rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/5 to-transparent p-4 space-y-4">
+        {loading ? (
+          <Skeleton className="h-20 rounded-2xl" />
+        ) : batches.length === 0 ? (
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+              <CalendarDays className="h-5 w-5 text-primary" />
+            </div>
+            <p className="text-sm text-muted-foreground">No batches assigned — attendance will appear here.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-center gap-3 shrink-0">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 ring-2 ring-primary/20">
+                <CalendarDays className="h-5 w-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Today</p>
+                <p className="font-semibold">
+                  {(() => {
+                    try {
+                      return format(parseISO(todayIso), "EEEE, d MMM yyyy");
+                    } catch {
+                      return todayIso;
+                    }
+                  })()}
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {markedTodayCount}/{batches.length} batches marked · today only
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-col sm:flex-row flex-1 gap-3 sm:items-center sm:max-w-md xl:max-w-sm">
+              <Select
+                value={panelBatchId}
+                onValueChange={setPanelBatchId}
+                disabled={panelSubmitting}
+              >
+                <SelectTrigger className="rounded-xl bg-white/80">
+                  <SelectValue placeholder="Select batch" />
+                </SelectTrigger>
+                <SelectContent>
+                  {batches.map(b => (
+                    <SelectItem key={b.id} value={b.id}>
+                      {b.batchName}
+                      {b.todayAttendance?.alreadyMarked ? " ✓" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {panelAlreadyMarked && panelBatch?.todayAttendance.status ? (
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="text-amber-800 font-medium whitespace-nowrap">Marked today</span>
+                  <StatusPill
+                    status={panelBatch.todayAttendance.status}
+                    className={
+                      panelBatch.todayAttendance.status === "Present"
+                        ? "bg-success-soft text-success"
+                        : panelBatch.todayAttendance.status === "Half Day"
+                          ? "bg-warning-soft text-warning"
+                          : "bg-destructive-soft text-destructive"
+                    }
+                  />
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground hidden sm:block">
+                  Mark attendance once per batch for today only.
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {panelSubmitting ? (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground px-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Saving…
+                </div>
+              ) : null}
+              <Button
+                type="button"
+                size="sm"
+                disabled={panelSubmitting || panelAlreadyMarked || !panelBatchId}
+                className="rounded-lg h-9 px-4 bg-emerald-600 hover:bg-emerald-700 text-white border-0"
+                onClick={() => void markTodayFromBar("Present")}
+              >
+                Present
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={panelSubmitting || panelAlreadyMarked || !panelBatchId}
+                className="rounded-lg h-9 px-4 border-red-200 text-red-700 hover:bg-red-50 hover:text-red-800"
+                onClick={() => void markTodayFromBar("Absent")}
+              >
+                Absent
+              </Button>
+              {showHalfDay ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={panelSubmitting || panelAlreadyMarked || !panelBatchId}
+                  className="rounded-lg h-9 px-4 border-amber-200 text-amber-800 hover:bg-amber-50"
+                  onClick={() => void markTodayFromBar("Half Day")}
+                >
+                  Half Day
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        )}
+      </div>
 
       <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">

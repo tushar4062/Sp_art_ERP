@@ -1,5 +1,7 @@
 import type { CredentialDocument } from "@/lib/models/Credentials";
 import Credential from "@/lib/models/Credentials";
+import SeniorTeacher from "@/lib/models/SeniorTeacher";
+import Teacher from "@/lib/models/Teacher";
 import { normalizeEmail } from "@/lib/auth/normalizeEmail";
 
 /** Find credential by email (normalized + legacy case-insensitive fallback). */
@@ -26,5 +28,22 @@ export async function findCredentialByLogin(identifier: string): Promise<Credent
   if (byUsername) return byUsername;
 
   const esc = username.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return Credential.findOne({ username: { $regex: new RegExp(`^${esc}$`, "i") } });
+  const byUsernameCi = await Credential.findOne({
+    username: { $regex: new RegExp(`^${esc}$`, "i") },
+  });
+  if (byUsernameCi) return byUsernameCi;
+
+  const badgeEsc = trimmed.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const badgeRegex = { $regex: new RegExp(`^${badgeEsc}$`, "i") };
+  const senior = await SeniorTeacher.findOne({ badgeId: badgeRegex });
+  if (senior?.email) {
+    return findCredentialByEmail(senior.email);
+  }
+
+  const teacher = await Teacher.findOne({ badgeId: badgeRegex });
+  if (teacher?.email) {
+    return findCredentialByEmail(teacher.email);
+  }
+
+  return null;
 }

@@ -1,6 +1,8 @@
 /** Shared leave date rules: no past dates; to >= from. */
 
 export const PAST_DATE_MESSAGE = "Previous dates are not allowed";
+export const FUTURE_DATE_MESSAGE = "Future dates are not allowed";
+export const TODAY_ONLY_MESSAGE = "Attendance can only be marked for today";
 
 /** Today's date as YYYY-MM-DD (local timezone). */
 export function todayDateString(): string {
@@ -16,6 +18,27 @@ export function isDateBeforeToday(date: string): boolean {
   const norm = date.trim();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(norm)) return true;
   return norm < todayDateString();
+}
+
+/** True if date string (YYYY-MM-DD) is strictly after today. */
+export function isDateAfterToday(date: string): boolean {
+  const norm = date.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(norm)) return true;
+  return norm > todayDateString();
+}
+
+/** Staff day-wise attendance: only the current calendar day. */
+export function isAttendanceDateAllowed(date: string): boolean {
+  const norm = date.trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(norm) && norm === todayDateString();
+}
+
+export function attendanceDateValidationError(date: string): string | null {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date.trim())) return "Invalid date";
+  if (isDateBeforeToday(date)) return PAST_DATE_MESSAGE;
+  if (isDateAfterToday(date)) return FUTURE_DATE_MESSAGE;
+  if (!isAttendanceDateAllowed(date)) return TODAY_ONLY_MESSAGE;
+  return null;
 }
 
 export type LeaveDateValidationResult =

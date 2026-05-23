@@ -8,6 +8,7 @@ import { requireTeacherFromRequest } from "@/lib/auth/require-teacher";
 import { teacherCanAccessBatch } from "@/lib/auth/require-batch-access";
 import { teacherAttendanceMarkSchema } from "@/lib/validators/teacherAttendance";
 import { serializeTeacherAttendance } from "@/lib/serializers/teacherAttendanceSerialize";
+import { resolveStaffName } from "@/lib/attendance/staffSelfAttendance";
 
 export const runtime = "nodejs";
 
@@ -140,8 +141,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
+    const userName = await resolveStaffName("teacher", auth.teacher.id);
     const doc = await TeacherAttendance.create({
       teacherId: teacherOid,
+      userName,
       role: "teacher",
       batchId: batchOid,
       batchName: batch.batchName,

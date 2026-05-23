@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import SeniorTeacher from '@/lib/models/SeniorTeacher';
+import { ensureSeniorTeacherCredential } from '@/lib/auth/ensureSeniorTeacherCredential';
+import { normalizeEmail } from '@/lib/auth/normalizeEmail';
 
 export const runtime = 'nodejs';
 
@@ -88,10 +90,11 @@ export async function POST(request: NextRequest) {
     }
 
     const finalBadgeId = badgeId?.trim() || await getUniqueBadgeId();
+    const emailNorm = normalizeEmail(email);
     const teacher = await SeniorTeacher.create({
       fullName,
       badgeId: finalBadgeId,
-      email,
+      email: emailNorm,
       phone,
       dob: dob ? new Date(dob) : undefined,
       age,
@@ -110,8 +113,34 @@ export async function POST(request: NextRequest) {
       assignedClasses,
     });
 
+    let credentialInfo: Record<string, unknown> | null = null;
+    try {
+      const cred = await ensureSeniorTeacherCredential({
+        name: fullName,
+        email: emailNorm,
+        mobileNumber: phone,
+        accountStatus: status === 'Inactive' ? 'Inactive' : 'Active',
+        createdBy: 'Senior Teachers admin',
+      });
+      credentialInfo = {
+        credentialCreated: cred.created,
+        credentialEmailSent: cred.created ? cred.emailSent : undefined,
+        ...(cred.created && !cred.emailSent
+          ? { temporaryPassword: cred.password, credentialEmailError: cred.emailError }
+          : {}),
+      };
+    } catch (credError) {
+      console.error('Error ensuring senior teacher credential:', credError);
+      credentialInfo = {
+        credentialCreated: false,
+        credentialWarning:
+          'Profile saved but login credential could not be created. Add one under Admin → Credentials → Senior Teachers.',
+      };
+    }
+
     return NextResponse.json({
       message: 'Senior teacher created successfully',
+      ...credentialInfo,
       teacher: {
         id: teacher._id.toString(),
         badgeId: teacher.badgeId,

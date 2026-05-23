@@ -9,19 +9,21 @@ export async function verifyCredentialPassword(
   credential: CredentialDocument,
   password: string,
 ): Promise<boolean> {
-  const hash = credential.passwordHash?.trim();
+  const plain = String(password).trim();
+  if (!plain) return false;
 
-  if (hash) {
+  const hash = credential.passwordHash?.trim();
+  if (hash && hash.length > 10) {
     try {
-      if (await bcrypt.compare(password, hash)) return true;
+      if (await bcrypt.compare(plain, hash)) return true;
     } catch {
       // Corrupt hash — try legacy plain password below
     }
   }
 
   const legacy = credential.password?.trim();
-  if (legacy && legacy === password) {
-    credential.passwordHash = await bcrypt.hash(password, 12);
+  if (legacy && legacy === plain) {
+    credential.passwordHash = await bcrypt.hash(plain, 12);
     await credential.save();
     return true;
   }

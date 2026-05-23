@@ -204,7 +204,9 @@ export default function Login() {
                   ? "Admin login uses the env credentials you configured."
                   : role === "student"
                     ? "Use the password set when admin created your student account."
-                    : "Enter the password from your credential record."}
+                    : role === "senior-teacher" || role === "teacher"
+                      ? "Use the password from Admin → Credentials, or first-time sign-in with 8+ chars (upper, lower, number, special e.g. Pawan@123) if your profile exists but login was not set up yet."
+                      : "Enter the password from your credential record."}
               </p>
             </div>
             <Button

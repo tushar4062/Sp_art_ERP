@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import SeniorTeacher from '@/lib/models/SeniorTeacher';
 import Credentials from '@/lib/models/Credentials';
+import { ensureSeniorTeacherCredential } from '@/lib/auth/ensureSeniorTeacherCredential';
+import { normalizeEmail } from '@/lib/auth/normalizeEmail';
 
 export const runtime = 'nodejs';
 
@@ -105,8 +107,29 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
       }
     }
 
+    let credentialInfo: Record<string, unknown> | null = null;
+    try {
+      const cred = await ensureSeniorTeacherCredential({
+        name: teacher.fullName,
+        email: normalizeEmail(teacher.email),
+        mobileNumber: teacher.phone,
+        accountStatus: teacher.status === 'Inactive' ? 'Inactive' : 'Active',
+        createdBy: 'Senior Teachers admin (update)',
+      });
+      credentialInfo = {
+        credentialCreated: cred.created,
+        credentialEmailSent: cred.created ? cred.emailSent : undefined,
+        ...(cred.created && !cred.emailSent
+          ? { temporaryPassword: cred.password, credentialEmailError: cred.emailError }
+          : {}),
+      };
+    } catch (credError) {
+      console.error('Error ensuring senior teacher credential on update:', credError);
+    }
+
     return NextResponse.json({
       message: 'Senior teacher updated successfully',
+      ...credentialInfo,
       teacher: {
         id: teacher._id.toString(),
         badgeId: teacher.badgeId,

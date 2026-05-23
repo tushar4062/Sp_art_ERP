@@ -7,7 +7,10 @@ import TeacherAttendance, {
   type TeacherAttendanceStatus,
 } from "@/lib/models/TeacherAttendance";
 import { serializeTeacherAttendance } from "@/lib/serializers/teacherAttendanceSerialize";
-import { isDateBeforeToday } from "@/lib/leave/dateValidation";
+import {
+  attendanceDateValidationError,
+  todayDateString,
+} from "@/lib/leave/dateValidation";
 import { seniorBatchScopeFilter } from "@/lib/attendance/batchScope";
 
 export type StaffRole = StaffAttendanceRole;
@@ -76,8 +79,11 @@ export async function markStaffAttendance(input: {
   status: TeacherAttendanceStatus;
   remarks: string;
 }) {
-  if (isDateBeforeToday(input.attendanceDate)) {
-    throw new Error("PAST_DATE");
+  const dateErr = attendanceDateValidationError(input.attendanceDate);
+  if (dateErr) {
+    if (dateErr.includes("Previous")) throw new Error("PAST_DATE");
+    if (dateErr.includes("Future")) throw new Error("FUTURE_DATE");
+    throw new Error("INVALID_DATE");
   }
 
   const allowed = await staffCanAccessBatch(input.role, input.userId, input.batchId);
@@ -86,14 +92,16 @@ export async function markStaffAttendance(input: {
   const batch = await Batch.findById(input.batchId).select("batchName").lean();
   if (!batch) throw new Error("NOT_FOUND");
 
+  const userName = await resolveStaffName(input.role, input.userId);
   const userOid = new mongoose.Types.ObjectId(input.userId);
   const batchOid = new mongoose.Types.ObjectId(input.batchId);
+  const attendanceDate = todayDateString();
 
   const existing = await TeacherAttendance.findOne({
     role: input.role,
     teacherId: userOid,
     batchId: batchOid,
-    attendanceDate: input.attendanceDate,
+    attendanceDate,
   });
 
   if (existing) {
@@ -103,10 +111,11 @@ export async function markStaffAttendance(input: {
   try {
     const doc = await TeacherAttendance.create({
       teacherId: userOid,
+      userName,
       role: input.role,
       batchId: batchOid,
       batchName: batch.batchName,
-      attendanceDate: input.attendanceDate,
+      attendanceDate,
       status: input.status,
       remarks: input.remarks,
       markedAt: new Date(),
@@ -118,12 +127,62 @@ export async function markStaffAttendance(input: {
         role: input.role,
         teacherId: userOid,
         batchId: batchOid,
-        attendanceDate: input.attendanceDate,
+        attendanceDate,
       });
       if (dup) return { duplicate: true as const, record: serializeTeacherAttendance(dup) };
     }
     throw e;
   }
+}
+
+export async function listStaffAttendanceHistory(
+  role: StaffRole,
+  userId: string,
+  options?: { limit?: number; batchId?: string },
+) {
+  const limit = Math.min(100, Math.max(1, options?.limit ?? 30));
+  const filter: Record<string, unknown> = {
+    role,
+    teacherId: new mongoose.Types.ObjectId(userId),
+  };
+  if (options?.batchId && mongoose.Types.ObjectId.isValid(options.batchId)) {
+    filter.batchId = new mongoose.Types.ObjectId(options.batchId);
+  }
+
+  const records = await TeacherAttendance.find(filter)
+    .sort({ attendanceDate: -1, createdAt: -1 })
+    .limit(limit)
+    .lean();
+
+  return records.map(r => ({
+    id: (r._id as mongoose.Types.ObjectId).toString(),
+    userId: r.teacherId.toString(),
+    userName: r.userName ?? "",
+    role: r.role,
+    batchId: r.batchId.toString(),
+    batchName: r.batchName ?? "",
+    attendanceStatus: r.status,
+    attendanceDate: r.attendanceDate,
+    remarks: r.remarks ?? "",
+    createdAt: r.createdAt ? new Date(r.createdAt).toISOString() : "",
+  }));
+}
+
+export async function getStaffAttendanceStats(role: StaffRole, userId: string) {
+  const match = {
+    role,
+    teacherId: new mongoose.Types.ObjectId(userId),
+  };
+  const [total, present, absent, halfDay] = await Promise.all([
+    TeacherAttendance.countDocuments(match),
+    TeacherAttendance.countDocuments({ ...match, status: "Present" }),
+    TeacherAttendance.countDocuments({ ...match, status: "Absent" }),
+    TeacherAttendance.countDocuments({ ...match, status: "Half Day" }),
+  ]);
+  const attendancePercentage =
+    total > 0 ? Math.round(((present + halfDay * 0.5) / total) * 100) : 0;
+
+  return { total, present, absent, halfDay, attendancePercentage };
 }
 
 export async function resolveStaffName(role: StaffRole, userId: string): Promise<string> {
@@ -209,12 +268,16 @@ export async function buildStaffAttendanceReport(filters: StaffReportFilters) {
     );
   }
 
+  const attendancePercentage =
+    total > 0 ? Math.round(((present + halfDay * 0.5) / total) * 100) : 0;
+
   return {
     summary: {
       total,
       present,
       absent,
       halfDay,
+      attendancePercentage,
       page,
       limit,
       totalPages: Math.max(1, Math.ceil(total / limit)),

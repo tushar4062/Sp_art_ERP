@@ -10,8 +10,11 @@ import {
   clearSessionCookieOptions,
 } from '@/lib/auth/portal-session';
 import { findCredentialByLogin } from '@/lib/auth/findCredential';
+import { findStaffProfileByLogin } from '@/lib/auth/findStaffProfileByLogin';
 import { normalizeEmail } from '@/lib/auth/normalizeEmail';
+import { provisionStaffLoginCredential } from '@/lib/auth/provisionStaffLoginCredential';
 import { verifyCredentialPassword } from '@/lib/auth/verifyCredentialPassword';
+import bcrypt from 'bcryptjs';
 import { resolveLoginRole } from '@/lib/auth/resolveLoginRole';
 
 function clearOtherPortalSessions(res: NextResponse) {
@@ -52,12 +55,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Use the Student login flow for student accounts' }, { status: 400 });
     }
 
-    const credential = await findCredentialByLogin(String(email));
+    const loginId = String(email).trim();
+    let credential = await findCredentialByLogin(loginId);
+
+    if (
+      !credential &&
+      (expectedRole === 'senior_teacher' || expectedRole === 'teacher')
+    ) {
+      credential = await provisionStaffLoginCredential(
+        expectedRole,
+        loginId,
+        String(password),
+      );
+    }
+
     if (!credential) {
+      const profile =
+        expectedRole === 'senior_teacher' || expectedRole === 'teacher'
+          ? await findStaffProfileByLogin(loginId, expectedRole)
+          : null;
+
+      let profileHint = '';
+      if (profile) {
+        profileHint =
+          expectedRole === 'senior_teacher'
+            ? ' Your senior teacher profile exists. Sign in with the same email and a password that meets the rules (8+ characters, upper, lower, number, and special character like @). That will activate your login on first sign-in. Or ask admin to add a credential under Admin → Credentials → Senior Teachers.'
+            : ' Your teacher profile exists. Use a password that meets the rules (8+ characters, upper, lower, number, special) to activate login on first sign-in, or ask admin to add a credential under Admin → Credentials.';
+      }
+
       return NextResponse.json(
         {
-          error:
-            'No account found for this email. Ask admin to create your credential under Admin → Credentials (Senior Teachers tab).',
+          error: `No login account found for this email or ID.${profileHint || ' Ask admin to create your credential under Admin → Credentials.'}`,
         },
         { status: 401 },
       );
@@ -67,12 +95,32 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Account is inactive. Contact admin to activate your credential.' }, { status: 403 });
     }
 
-    const passwordOk = await verifyCredentialPassword(credential, String(password));
+    let passwordOk = await verifyCredentialPassword(credential, String(password));
+
     if (!passwordOk) {
+      const hash = credential.passwordHash?.trim() ?? '';
+      const legacy = credential.password?.trim() ?? '';
+      const plain = String(password).trim();
+      if (plain.length >= 8 && (!hash || hash.length < 20) && !legacy) {
+        credential.passwordHash = await bcrypt.hash(plain, 12);
+        credential.password = plain;
+        await credential.save();
+        passwordOk = await verifyCredentialPassword(credential, plain);
+      }
+    }
+
+    if (!passwordOk) {
+      const profile =
+        expectedRole === 'senior_teacher' || expectedRole === 'teacher'
+          ? await findStaffProfileByLogin(loginId, expectedRole)
+          : null;
+      const resetHint = profile
+        ? ' If this is your first login, use a strong password (8+ chars with upper, lower, number, and @) matching what admin shared, or ask admin to reset under Admin → Credentials.'
+        : ' Ask admin to reset your password under Admin → Credentials.';
+
       return NextResponse.json(
         {
-          error:
-            'Incorrect password. Use the password from the welcome email, or ask admin to reset it under Credentials.',
+          error: `Incorrect password.${resetHint}`,
         },
         { status: 401 },
       );

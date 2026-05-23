@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isDateBeforeToday, PAST_DATE_MESSAGE } from "@/lib/leave/dateValidation";
+import { attendanceDateValidationError } from "@/lib/leave/dateValidation";
 
 export const staffAttendanceStatusSchema = z.enum(["Present", "Absent", "Half Day"]);
 
@@ -9,7 +9,10 @@ export const staffAttendanceMarkSchema = z.object({
     .string()
     .trim()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Invalid date")
-    .refine(d => !isDateBeforeToday(d), PAST_DATE_MESSAGE),
+    .superRefine((d, ctx) => {
+      const err = attendanceDateValidationError(d);
+      if (err) ctx.addIssue({ code: z.ZodIssueCode.custom, message: err });
+    }),
   status: staffAttendanceStatusSchema,
   remarks: z.string().trim().max(500).optional().default(""),
 });

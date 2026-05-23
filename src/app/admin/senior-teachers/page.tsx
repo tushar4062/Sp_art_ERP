@@ -249,7 +249,29 @@ export default function SeniorTeachersPage() {
         throw new Error(data.error || "Unable to save senior teacher");
       }
 
-      toast.success(isEdit ? "Senior teacher updated successfully" : "Senior teacher added successfully");
+      if (data.credentialCreated) {
+        if (data.credentialEmailSent) {
+          toast.success(
+            isEdit
+              ? "Senior teacher updated. Login credentials were created and emailed."
+              : "Senior teacher added. Login credentials were created and emailed.",
+          );
+        } else if (data.temporaryPassword) {
+          toast.success(
+            `${isEdit ? "Updated" : "Added"}. Login password (share securely): ${data.temporaryPassword}`,
+            { duration: 20000 },
+          );
+        } else {
+          toast.success(
+            isEdit ? "Senior teacher updated with new login access." : "Senior teacher added with login access.",
+          );
+        }
+      } else if (data.credentialWarning) {
+        toast.warning(data.credentialWarning);
+        toast.success(isEdit ? "Senior teacher updated successfully" : "Senior teacher added successfully");
+      } else {
+        toast.success(isEdit ? "Senior teacher updated successfully" : "Senior teacher added successfully");
+      }
       closeSheet();
       await fetchTeachers();
     } catch (error) {

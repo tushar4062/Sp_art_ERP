@@ -4,10 +4,16 @@ import { requireSeniorTeacherFromRequest } from "@/lib/auth/require-senior-teach
 import { staffAttendanceMarkSchema } from "@/lib/validators/teacherAttendance";
 import {
   getStaffAttendanceRecord,
+  getStaffAttendanceStats,
   listAssignedBatchesForStaff,
+  listStaffAttendanceHistory,
   markStaffAttendance,
 } from "@/lib/attendance/staffSelfAttendance";
-import { PAST_DATE_MESSAGE } from "@/lib/leave/dateValidation";
+import {
+  FUTURE_DATE_MESSAGE,
+  PAST_DATE_MESSAGE,
+  TODAY_ONLY_MESSAGE,
+} from "@/lib/leave/dateValidation";
 
 export const runtime = "nodejs";
 
@@ -20,6 +26,18 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const batchId = (searchParams.get("batchId") || "").trim();
     const attendanceDate = (searchParams.get("date") || "").trim();
+    const history = searchParams.get("history") === "1";
+
+    if (history) {
+      const [records, stats] = await Promise.all([
+        listStaffAttendanceHistory("senior-teacher", auth.seniorTeacher.id, {
+          limit: Number(searchParams.get("limit") || 30),
+          batchId: batchId || undefined,
+        }),
+        getStaffAttendanceStats("senior-teacher", auth.seniorTeacher.id),
+      ]);
+      return NextResponse.json({ success: true, data: { history: records, stats } });
+    }
 
     if (batchId && attendanceDate) {
       const record = await getStaffAttendanceRecord(
@@ -67,7 +85,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           success: false,
-          error: "Attendance already submitted for this batch and date",
+          error: "Attendance already marked for today",
           data: { record: result.record, duplicate: true },
         },
         { status: 409 },
@@ -83,6 +101,12 @@ export async function POST(request: NextRequest) {
     const msg = e instanceof Error ? e.message : "";
     if (msg === "PAST_DATE") {
       return NextResponse.json({ success: false, error: PAST_DATE_MESSAGE }, { status: 422 });
+    }
+    if (msg === "FUTURE_DATE") {
+      return NextResponse.json({ success: false, error: FUTURE_DATE_MESSAGE }, { status: 422 });
+    }
+    if (msg === "INVALID_DATE") {
+      return NextResponse.json({ success: false, error: TODAY_ONLY_MESSAGE }, { status: 422 });
     }
     if (msg === "FORBIDDEN") {
       return NextResponse.json({ success: false, error: "You are not assigned to this batch" }, { status: 403 });
