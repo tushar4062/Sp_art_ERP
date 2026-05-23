@@ -1,6 +1,6 @@
 "use client";
 
-import { AdminLeavesPage } from "@/components/admin/AdminLeavesPage";
+import { AdminLeavesPage } from "./AdminLeavesPage";
 
 export default function AdminLeavesRoute() {
   return <AdminLeavesPage />;
