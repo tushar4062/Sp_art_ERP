@@ -25,8 +25,8 @@ function formatMonthLabel(date: Date) {
   return date.toLocaleString("default", { month: "long", year: "numeric" });
 }
 
-function formatDateKey(date: Date) {
-  return date.toISOString().split("T")[0];
+function formatDateKey(year: number, month: number, day: number) {
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 export default function StudentAttendancePreviewPage() {
@@ -227,8 +227,12 @@ export default function StudentAttendancePreviewPage() {
               <div key={`empty-${index}`} className="h-16 rounded-3xl bg-slate-100" />
             ))}
             {Array.from({ length: daysInMonth }).map((_, index) => {
-              const date = new Date(monthDate.getFullYear(), monthDate.getMonth(), index + 1);
-              const key = formatDateKey(date);
+              const day = index + 1;
+              const key = formatDateKey(
+                monthDate.getFullYear(),
+                monthDate.getMonth() + 1,
+                day,
+              );
               const status = attendanceMap[key];
               const statusClasses =
                 status === "Present"

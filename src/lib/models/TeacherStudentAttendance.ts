@@ -15,7 +15,10 @@ export interface TeacherStudentAttendanceDocument extends mongoose.Document {
   courseName: string;
   teacherId: mongoose.Types.ObjectId;
   teacherName: string;
-  date: Date;
+  /** Preferred: YYYY-MM-DD (no UTC shift). */
+  attendanceDate: string;
+  /** @deprecated Legacy UTC Date — use attendanceDate for reads/writes. */
+  date?: Date;
   students: AttendanceStudent[];
   createdAt: Date;
   updatedAt: Date;
@@ -55,17 +58,14 @@ const TeacherStudentAttendanceSchema = new mongoose.Schema<TeacherStudentAttenda
       required: true,
     },
     teacherName: { type: String, required: true, trim: true },
-    date: { type: Date, required: true },
+    attendanceDate: { type: String, trim: true, index: true },
+    date: { type: Date, required: false },
     students: { type: [AttendanceStudentSchema], default: [] },
   },
   { timestamps: true, collection: "teacher_student_attendance" }
 );
 
-// Create compound index to prevent duplicates
-TeacherStudentAttendanceSchema.index(
-  { batchId: 1, date: 1 },
-  { unique: true }
-);
+TeacherStudentAttendanceSchema.index({ batchId: 1, attendanceDate: 1 }, { unique: true });
 
 const TeacherStudentAttendanceModel =
   (mongoose.models

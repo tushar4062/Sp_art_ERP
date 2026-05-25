@@ -320,11 +320,12 @@ function StudentAttendanceCalendar({
   // Create a map of date -> status for quick lookup
   const attendanceMap: Record<string, string> = {};
   batchRecords.forEach((record: StudentAttendanceRecord) => {
-    const dateStr = record.date instanceof Date 
-      ? record.date.toISOString().split("T")[0]
-      : typeof record.date === "string" 
+    const raw =
+      typeof record.date === "string"
         ? record.date.split("T")[0]
-        : String(record.date);
+        : String(record.date ?? "");
+    const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : raw.slice(0, 10);
+    if (!dateStr) return;
     attendanceMap[dateStr] = record.status;
     console.log(`[StudentAttendanceCalendar] Mapped date ${dateStr} -> status ${record.status}`);
   });

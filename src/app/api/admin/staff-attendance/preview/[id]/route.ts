@@ -7,6 +7,7 @@ import {
   resolveStaffPreviewFromRecordId,
   type StaffRole,
 } from "@/lib/attendance/staffSelfAttendance";
+import { currentMonthString } from "@/lib/dates/attendanceDate";
 
 export const runtime = "nodejs";
 
@@ -25,7 +26,7 @@ export async function GET(
 
     const { id } = await context.params;
     const { searchParams } = new URL(request.url);
-    const month = (searchParams.get("month") || new Date().toISOString().slice(0, 7)).trim();
+    const month = (searchParams.get("month") || currentMonthString()).trim();
     let role = parseRole((searchParams.get("role") || "").trim());
 
     await dbConnect();

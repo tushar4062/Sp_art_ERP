@@ -6,6 +6,7 @@ import TeacherStudentAttendanceModel, {
   type AttendanceStudent,
 } from "@/lib/models/TeacherStudentAttendance";
 import { TEACHER_SESSION_COOKIE } from "@/lib/auth/portal-session";
+import { attendanceDateFromDoc } from "@/lib/dates/attendanceDate";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ studentId: string }> }) {
   const { studentId } = await params;
@@ -54,19 +55,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ stud
       batchId: batchObjectId,
       "students.studentId": studentObjectId,
     })
-      .select("date students")
+      .select("date attendanceDate students")
       .lean();
 
     const attendanceRecords = attendanceDocs.flatMap(doc =>
       doc.students
         .filter(
-          (studentEntry: AttendanceStudent) =>
-            studentEntry.studentId?.toString() === studentId,
+          (studentEntry: AttendanceStudent) => studentEntry.studentId?.toString() === studentId,
         )
         .map((studentEntry: AttendanceStudent) => ({
-          date: doc.date.toISOString().split("T")[0],
+          date: attendanceDateFromDoc(doc),
           status: studentEntry.status,
         }))
+        .filter(r => r.date),
     );
 
     return NextResponse.json({

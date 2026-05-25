@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import dbConnect from "@/lib/mongodb";
 import TeacherAttendanceModel from "@/lib/models/TeacherAttendance";
 import { TEACHER_SESSION_COOKIE } from "@/lib/auth/portal-session";
+import { currentMonthString, monthDateBounds } from "@/lib/dates/attendanceDate";
 
 export async function GET(req: NextRequest) {
   try {
@@ -16,23 +17,17 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const month = searchParams.get("month");
 
-    const now = new Date();
-    const useMonth = month || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    const [year, monthNumber] = useMonth.split("-").map(Number);
-    if (!year || !monthNumber || monthNumber < 1 || monthNumber > 12) {
+    const useMonth = month || currentMonthString();
+    const bounds = monthDateBounds(useMonth);
+    if (!bounds) {
       return NextResponse.json({ error: "Invalid month" }, { status: 400 });
     }
-
-    const startStr = `${year}-${String(monthNumber).padStart(2, "0")}-01`;
-    const nextMonth = monthNumber === 12 ? 1 : monthNumber + 1;
-    const nextYear = monthNumber === 12 ? year + 1 : year;
-    const endStr = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
 
     const objectTeacherId = new mongoose.Types.ObjectId(teacherId);
 
     const records = await TeacherAttendanceModel.find({
       teacherId: objectTeacherId,
-      attendanceDate: { $gte: startStr, $lt: endStr },
+      attendanceDate: { $gte: bounds.start, $lte: bounds.end },
     })
       .select("attendanceDate status batchId remarks")
       .lean();

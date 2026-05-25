@@ -24,6 +24,7 @@ import { parseJsonResponse } from "@/lib/api/parseJsonResponse";
 import { messageFromUnknown } from "@/lib/errors/messageFromUnknown";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { currentMonthString } from "@/lib/dates/attendanceDate";
 
 type PreviewData = {
   staff: { userId: string; name: string; email: string; role: string };
@@ -52,7 +53,7 @@ export function AdminStaffAttendancePreviewPage({
     searchParams.get("returnTo") ||
     (role === "senior-teacher" ? "/admin/attendance/senior-teacher" : "/admin/attendance/teacher");
 
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [month, setMonth] = useState(() => currentMonthString());
   const [data, setData] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

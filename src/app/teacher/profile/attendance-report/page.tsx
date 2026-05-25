@@ -7,13 +7,14 @@ import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { Calendar } from "lucide-react";
+import { currentMonthString } from "@/lib/dates/attendanceDate";
 
 type Rec = { attendanceDate: string; status: string; batchId?: string; remarks?: string };
 
 export default function TeacherAttendanceReportPage() {
   const router = useRouter();
   const { user } = useAuth();
-  const [month, setMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [month, setMonth] = useState(() => currentMonthString());
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState<Rec[]>([]);
   const [summary, setSummary] = useState<{ present: number; absent: number; total: number; percentage: number } | null>(null);

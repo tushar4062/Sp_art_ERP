@@ -9,14 +9,11 @@ import { attendanceBulkSchema } from "@/lib/validators/attendance";
 import { serializeAttendance } from "@/lib/serializers/attendanceSerialize";
 import { recomputeBatchAttendanceSummary } from "@/lib/attendance/recomputeBatchSummary";
 import { loadPhotosByEmail } from "@/lib/attendance/rosterPhotos";
+import { todayDateString } from "@/lib/dates/attendanceDate";
 
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 async function assertTeacherBatch(teacherId: string, batchId: string) {
   if (!mongoose.Types.ObjectId.isValid(batchId)) {
@@ -43,7 +40,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const { searchParams } = new URL(request.url);
-    const attendanceDate = (searchParams.get("date") || todayIso()).trim();
+    const attendanceDate = (searchParams.get("date") || todayDateString()).trim();
     const search = (searchParams.get("search") || "").trim().toLowerCase();
     const statusFilter = (searchParams.get("status") || "All").trim();
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10) || 1);

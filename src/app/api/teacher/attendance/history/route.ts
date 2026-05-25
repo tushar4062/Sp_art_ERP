@@ -4,6 +4,7 @@ import dbConnect from "@/lib/mongodb";
 import BatchModel from "@/lib/models/Batch";
 import TeacherStudentAttendanceModel from "@/lib/models/TeacherStudentAttendance";
 import { TEACHER_SESSION_COOKIE } from "@/lib/auth/portal-session";
+import { attendanceDateFromDoc, monthDateBounds } from "@/lib/dates/attendanceDate";
 
 export async function GET(req: NextRequest) {
   try {
@@ -27,8 +28,8 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: "Invalid batch or student ID" }, { status: 400 });
     }
 
-    const [year, monthNumber] = month.split("-").map(Number);
-    if (!year || !monthNumber || monthNumber < 1 || monthNumber > 12) {
+    const bounds = monthDateBounds(month);
+    if (!bounds) {
       return NextResponse.json({ error: "Invalid month format" }, { status: 400 });
     }
 
@@ -39,57 +40,53 @@ export async function GET(req: NextRequest) {
     const batch = await BatchModel.findOne({
       _id: objectBatchId,
       teacherIds: { $in: [objectTeacherId] },
-    }).select("_id").lean();
+    })
+      .select("_id")
+      .lean();
 
     if (!batch) {
       return NextResponse.json({ error: "Batch not found or access denied" }, { status: 404 });
     }
 
-    const startDate = new Date(year, monthNumber - 1, 1);
-    startDate.setHours(0, 0, 0, 0);
-    const endDate = new Date(year, monthNumber, 1);
-    endDate.setHours(0, 0, 0, 0);
-
     const attendanceRecords = await TeacherStudentAttendanceModel.find({
       batchId: objectBatchId,
-      date: { $gte: startDate, $lt: endDate },
+      $or: [
+        { attendanceDate: { $gte: bounds.start, $lte: bounds.end } },
+        { attendanceDate: { $exists: false } },
+        { attendanceDate: null },
+      ],
     })
-      .select("date students")
+      .select("date attendanceDate students")
       .lean();
 
     const records = attendanceRecords
-      .map((attendance) => {
-        const studentRecord = attendance.students.find((student) =>
-          student.studentId.toString() === objectStudentId.toString(),
-        );
+      .map(attendance => {
+        const dateStr = attendanceDateFromDoc(attendance);
+        if (!dateStr || dateStr < bounds.start || dateStr > bounds.end) return null;
 
-        if (!studentRecord) {
-          return null;
-        }
+        const studentRecord = attendance.students.find(
+          student => student.studentId.toString() === objectStudentId.toString(),
+        );
+        if (!studentRecord) return null;
 
         return {
-          date: attendance.date.toISOString().slice(0, 10),
+          date: dateStr,
           status: studentRecord.status as "Present" | "Absent",
           remark: studentRecord.remark || "",
         };
       })
       .filter(Boolean) as Array<{ date: string; status: "Present" | "Absent"; remark: string }>;
 
-    const present = records.filter((record) => record.status === "Present").length;
-    const absent = records.filter((record) => record.status === "Absent").length;
+    const present = records.filter(record => record.status === "Present").length;
+    const absent = records.filter(record => record.status === "Absent").length;
     const totalDays = records.length;
-    const percentage = totalDays > 0 ? (present / totalDays) * 100 : 0;
+    const percentage = totalDays > 0 ? Math.round((present / totalDays) * 100) : 0;
 
     return NextResponse.json(
       {
         success: true,
         records,
-        summary: {
-          present,
-          absent,
-          totalDays,
-          percentage,
-        },
+        summary: { present, absent, totalDays, percentage },
       },
       { status: 200 },
     );

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AlertCircle, ChevronLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { todayDateString } from "@/lib/dates/attendanceDate";
 
 interface BatchStudent {
   _id: string;
@@ -45,9 +46,7 @@ export default function BatchAttendancePage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    const today = new Date();
-    const dateString = today.toISOString().split("T")[0];
-    setSelectedDate(dateString);
+    setSelectedDate(todayDateString());
   }, []);
 
   const fetchBatchDetails = useCallback(async (date: string) => {

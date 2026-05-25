@@ -7,15 +7,16 @@ import type { BatchAccess } from "@/lib/auth/require-batch-access";
 import { getScopedBatchIds, seniorCanAccessBatch } from "@/lib/attendance/batchScope";
 import { serializeTeacherAttendance } from "@/lib/serializers/teacherAttendanceSerialize";
 import type { TeacherAttendanceDocument } from "@/lib/models/TeacherAttendance";
+import { formatDateOnly, todayDateString } from "@/lib/dates/attendanceDate";
 
 export function defaultReportFromDate() {
   const d = new Date();
   d.setDate(d.getDate() - 30);
-  return d.toISOString().slice(0, 10);
+  return formatDateOnly(d);
 }
 
 export function reportTodayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return todayDateString();
 }
 
 export type ReportQuery = {

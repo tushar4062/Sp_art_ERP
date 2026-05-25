@@ -8,14 +8,11 @@ import { requireTeacherFromRequest } from "@/lib/auth/require-teacher";
 import { teacherCanAccessBatch } from "@/lib/auth/require-batch-access";
 import { teacherAttendanceMarkSchema } from "@/lib/validators/teacherAttendance";
 import { serializeTeacherAttendance } from "@/lib/serializers/teacherAttendanceSerialize";
+import { todayDateString } from "@/lib/dates/attendanceDate";
 
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 /** GET today's (or ?date=) own attendance for this batch */
 export async function GET(request: NextRequest, context: RouteContext) {
@@ -38,7 +35,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const { searchParams } = new URL(request.url);
-    const attendanceDate = (searchParams.get("date") || todayIso()).trim();
+    const attendanceDate = (searchParams.get("date") || todayDateString()).trim();
 
     const [batch, teacher, record] = await Promise.all([
       Batch.findById(batchId).select("batchName courseName batchTiming batchDay batchTime"),
@@ -56,7 +53,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const batchTiming = batch.batchTiming || `${batch.batchDay} · ${batch.batchTime}`;
-    const isToday = attendanceDate === todayIso();
+    const isToday = attendanceDate === todayDateString();
 
     return NextResponse.json({
       success: true,
@@ -113,7 +110,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const attendanceDate = todayIso();
+    const attendanceDate = todayDateString();
     const teacherOid = new mongoose.Types.ObjectId(auth.teacher.id);
     const batchOid = new mongoose.Types.ObjectId(batchId);
 

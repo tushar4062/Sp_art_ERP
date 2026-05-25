@@ -14,6 +14,7 @@ import { applySeniorOwnership, resolveBatchAssignees } from "@/lib/batch/resolve
 import TeacherAttendance from "@/lib/models/TeacherAttendance";
 import type { TeacherAttendanceDocument } from "@/lib/models/TeacherAttendance";
 import { seniorBatchScopeFilter } from "@/lib/attendance/batchScope";
+import { todayDateString } from "@/lib/dates/attendanceDate";
 
 export const runtime = "nodejs";
 
@@ -26,10 +27,6 @@ function resolvePageSize(searchParams: URLSearchParams) {
     return Math.min(requested, MAX_PAGE_SIZE);
   }
   return DEFAULT_PAGE_SIZE;
-}
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
 }
 
 async function notifyAssignedTeachers(batch: BatchDocument) {
@@ -132,7 +129,7 @@ export async function GET(request: NextRequest) {
     ]);
 
     const batchIds = rows.map(d => d._id as mongoose.Types.ObjectId);
-    const today = todayIso();
+    const today = todayDateString();
     const seniorOid =
       access.kind === "senior" && access.seniorTeacherId
         ? new mongoose.Types.ObjectId(access.seniorTeacherId)

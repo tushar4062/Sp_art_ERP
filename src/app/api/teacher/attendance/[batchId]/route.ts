@@ -4,6 +4,7 @@ import dbConnect from "@/lib/mongodb";
 import BatchModel from "@/lib/models/Batch";
 import TeacherStudentAttendanceModel from "@/lib/models/TeacherStudentAttendance";
 import { TEACHER_SESSION_COOKIE } from "@/lib/auth/portal-session";
+import { normalizeDateOnly } from "@/lib/dates/attendanceDate";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ batchId: string }> }) {
   const { batchId } = await params;
@@ -35,26 +36,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
     }
 
     let attendance = null;
-    if (selectedDate) {
-      const attendanceDate = new Date(selectedDate);
-      attendanceDate.setHours(0, 0, 0, 0);
-
+    const attendanceDate = selectedDate ? normalizeDateOnly(selectedDate) : null;
+    if (attendanceDate) {
       attendance = await TeacherStudentAttendanceModel.findOne({
         batchId: batchObjectId,
-        date: attendanceDate,
+        attendanceDate,
       })
-        .select("students date")
+        .select("students attendanceDate")
         .lean();
     }
 
-    return NextResponse.json(
-      {
-        success: true,
-        batch,
-        attendance,
-      },
-      { status: 200 }
-    );
+    return NextResponse.json({ success: true, batch, attendance }, { status: 200 });
   } catch (error) {
     console.error("Error fetching batch attendance details:", error);
     return NextResponse.json({ error: "Failed to load batch details" }, { status: 500 });

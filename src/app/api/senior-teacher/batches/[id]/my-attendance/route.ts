@@ -8,14 +8,11 @@ import { requireSeniorTeacherFromRequest } from "@/lib/auth/require-senior-teach
 import { seniorCanAccessBatch } from "@/lib/attendance/batchScope";
 import { teacherAttendanceMarkSchema } from "@/lib/validators/teacherAttendance";
 import { serializeTeacherAttendance } from "@/lib/serializers/teacherAttendanceSerialize";
+import { todayDateString } from "@/lib/dates/attendanceDate";
 
 export const runtime = "nodejs";
 
 type RouteContext = { params: Promise<{ id: string }> };
-
-function todayIso() {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
@@ -37,7 +34,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     const { searchParams } = new URL(request.url);
-    const attendanceDate = (searchParams.get("date") || todayIso()).trim();
+    const attendanceDate = (searchParams.get("date") || todayDateString()).trim();
 
     const [batch, senior, record] = await Promise.all([
       Batch.findById(batchId).select("batchName courseName batchTiming batchDay batchTime"),
@@ -71,7 +68,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
           batchTiming,
         },
         attendanceDate,
-        isToday: attendanceDate === todayIso(),
+        isToday: attendanceDate === todayDateString(),
         alreadyMarked: !!record,
         record: record ? serializeTeacherAttendance(record) : null,
       },
@@ -110,7 +107,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    const attendanceDate = todayIso();
+    const attendanceDate = todayDateString();
     const userOid = new mongoose.Types.ObjectId(auth.seniorTeacher.id);
     const batchOid = new mongoose.Types.ObjectId(batchId);
 
