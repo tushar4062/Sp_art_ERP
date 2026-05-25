@@ -222,3 +222,191 @@ export async function buildStaffAttendanceReport(filters: StaffReportFilters) {
     records: rows,
   };
 }
+
+export type StaffListRow = {
+  id: string;
+  userId: string;
+  batchId: string;
+  staffName: string;
+  batchName: string;
+  remarks: string;
+};
+
+/** One row per staff + batch (for admin list with Preview). */
+export async function buildStaffAttendanceGroupedList(filters: StaffReportFilters) {
+  const page = Math.max(1, filters.page ?? 1);
+  const limit = Math.min(100, Math.max(1, filters.limit ?? 20));
+
+  const match: Record<string, unknown> = { role: filters.role };
+  if (filters.batchId && mongoose.Types.ObjectId.isValid(filters.batchId)) {
+    match.batchId = new mongoose.Types.ObjectId(filters.batchId);
+  }
+  if (filters.userId && mongoose.Types.ObjectId.isValid(filters.userId)) {
+    match.teacherId = new mongoose.Types.ObjectId(filters.userId);
+  }
+
+  const grouped = await TeacherAttendance.aggregate<{
+    _id: { teacherId: mongoose.Types.ObjectId; batchId: mongoose.Types.ObjectId };
+    batchName: string;
+    remarks: string;
+    recordId: mongoose.Types.ObjectId;
+  }>([
+    { $match: match },
+    { $sort: { attendanceDate: -1, createdAt: -1 } },
+    {
+      $group: {
+        _id: { teacherId: "$teacherId", batchId: "$batchId" },
+        batchName: { $first: "$batchName" },
+        remarks: { $first: "$remarks" },
+        recordId: { $first: "$_id" },
+      },
+    },
+    { $sort: { batchName: 1 } },
+  ]);
+
+  const userIds = [...new Set(grouped.map(g => g._id.teacherId.toString()))];
+  const nameMap = new Map<string, string>();
+
+  if (filters.role === "teacher") {
+    const teachers = await Teacher.find({ _id: { $in: userIds } }).select("fullName").lean();
+    teachers.forEach(t => nameMap.set((t._id as mongoose.Types.ObjectId).toString(), t.fullName));
+  } else {
+    const seniors = await SeniorTeacher.find({ _id: { $in: userIds } }).select("fullName").lean();
+    seniors.forEach(s => nameMap.set((s._id as mongoose.Types.ObjectId).toString(), s.fullName));
+  }
+
+  let rows: StaffListRow[] = grouped.map(g => {
+    const userId = g._id.teacherId.toString();
+    const batchId = g._id.batchId.toString();
+    return {
+      id: `${userId}_${batchId}`,
+      userId,
+      batchId,
+      staffName: nameMap.get(userId) ?? (filters.role === "teacher" ? "Teacher" : "Senior Teacher"),
+      batchName: g.batchName || "",
+      remarks: g.remarks ?? "",
+    };
+  });
+
+  const q = (filters.search || "").trim().toLowerCase();
+  if (q) {
+    rows = rows.filter(
+      row =>
+        row.staffName.toLowerCase().includes(q) ||
+        row.batchName.toLowerCase().includes(q) ||
+        row.remarks.toLowerCase().includes(q),
+    );
+  }
+
+  const total = rows.length;
+  const skip = (page - 1) * limit;
+  const pageRows = rows.slice(skip, skip + limit);
+
+  return {
+    summary: {
+      total,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+    },
+    records: pageRows,
+  };
+}
+
+export function parseStaffPreviewId(id: string): { userId: string; batchId: string } | null {
+  const parts = decodeURIComponent(id).split("_");
+  if (parts.length !== 2) return null;
+  const [userId, batchId] = parts;
+  if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(batchId)) {
+    return null;
+  }
+  return { userId, batchId };
+}
+
+export async function resolveStaffPreviewFromRecordId(recordId: string) {
+  if (!mongoose.Types.ObjectId.isValid(recordId)) return null;
+  const row = await TeacherAttendance.findById(recordId).lean();
+  if (!row) return null;
+  return {
+    userId: row.teacherId.toString(),
+    batchId: row.batchId.toString(),
+    role: row.role as StaffRole,
+  };
+}
+
+export async function buildStaffAttendancePreview(input: {
+  role: StaffRole;
+  userId: string;
+  batchId: string;
+  month: string;
+}) {
+  const { role, userId, batchId, month } = input;
+  if (!/^\d{4}-\d{2}$/.test(month)) {
+    throw new Error("INVALID_MONTH");
+  }
+
+  const [year, mo] = month.split("-").map(Number);
+  const start = `${month}-01`;
+  const endDay = new Date(year, mo, 0).getDate();
+  const end = `${month}-${String(endDay).padStart(2, "0")}`;
+
+  const match = {
+    role,
+    teacherId: new mongoose.Types.ObjectId(userId),
+    batchId: new mongoose.Types.ObjectId(batchId),
+    attendanceDate: { $gte: start, $lte: end },
+  };
+
+  const [records, batch, staffProfile] = await Promise.all([
+    TeacherAttendance.find(match).sort({ attendanceDate: 1 }).lean(),
+    Batch.findById(batchId).select("batchName courseName batchDay batchTime").lean(),
+    role === "teacher"
+      ? Teacher.findById(userId).select("fullName email").lean()
+      : SeniorTeacher.findById(userId).select("fullName email").lean(),
+  ]);
+
+  if (!batch) throw new Error("NOT_FOUND");
+
+  const present = records.filter(r => r.status === "Present").length;
+  const absent = records.filter(r => r.status === "Absent").length;
+  const halfDay = records.filter(r => r.status === "Half Day").length;
+  const total = records.length;
+  const attendancePercentage =
+    total > 0 ? Math.round(((present + halfDay * 0.5) / total) * 100) : 0;
+
+  const name =
+    staffProfile && "fullName" in staffProfile
+      ? staffProfile.fullName
+      : role === "teacher"
+        ? "Teacher"
+        : "Senior Teacher";
+  const email = staffProfile && "email" in staffProfile ? staffProfile.email : "";
+
+  return {
+    staff: {
+      userId,
+      name,
+      email,
+      role,
+    },
+    batch: {
+      id: batchId,
+      name: batch.batchName,
+      course: batch.courseName || "—",
+      schedule: batch.batchTiming || `${batch.batchDay} · ${batch.batchTime}`,
+    },
+    month,
+    summary: {
+      present,
+      absent,
+      halfDay,
+      total,
+      attendancePercentage,
+    },
+    records: records.map(r => ({
+      date: r.attendanceDate,
+      status: r.status as TeacherAttendanceStatus,
+      remarks: r.remarks ?? "",
+    })),
+  };
+}

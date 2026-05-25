@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import dbConnect from "@/lib/mongodb";
 import { requireAdminFromRequest } from "@/lib/auth/require-admin";
-import { buildStaffAttendanceReport, type StaffRole } from "@/lib/attendance/staffSelfAttendance";
+import { buildStaffAttendanceGroupedList, type StaffRole } from "@/lib/attendance/staffSelfAttendance";
 
 export const runtime = "nodejs";
 
@@ -23,10 +23,8 @@ export async function GET(request: NextRequest) {
 
     await dbConnect();
 
-    const data = await buildStaffAttendanceReport({
+    const data = await buildStaffAttendanceGroupedList({
       role,
-      from: (searchParams.get("from") || "").trim() || undefined,
-      to: (searchParams.get("to") || "").trim() || undefined,
       batchId: (searchParams.get("batchId") || "").trim() || undefined,
       userId: (searchParams.get("userId") || searchParams.get("teacherId") || "").trim() || undefined,
       search: (searchParams.get("search") || "").trim() || undefined,
