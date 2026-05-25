@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import dbConnect from "@/lib/mongodb";
-import BatchModel from "@/lib/models/Batch";
-import TeacherStudentAttendanceModel from "@/lib/models/TeacherStudentAttendance";
+import BatchModel, { type BatchEmbeddedStudent } from "@/lib/models/Batch";
+import TeacherStudentAttendanceModel, {
+  type AttendanceStudent,
+} from "@/lib/models/TeacherStudentAttendance";
 import { TEACHER_SESSION_COOKIE } from "@/lib/auth/portal-session";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ studentId: string }> }) {
@@ -41,7 +43,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ stud
       return NextResponse.json({ error: "Batch or student not found" }, { status: 404 });
     }
 
-    const student = batch.students.find((entry: any) => entry._id.toString() === studentId);
+    const student = batch.students.find(
+      (entry: BatchEmbeddedStudent) => entry._id.toString() === studentId,
+    );
     if (!student) {
       return NextResponse.json({ error: "Student not found in batch" }, { status: 404 });
     }
@@ -53,10 +57,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ stud
       .select("date students")
       .lean();
 
-    const attendanceRecords = attendanceDocs.flatMap((doc) =>
+    const attendanceRecords = attendanceDocs.flatMap(doc =>
       doc.students
-        .filter((studentEntry: any) => studentEntry.studentId?.toString() === studentId)
-        .map((studentEntry: any) => ({
+        .filter(
+          (studentEntry: AttendanceStudent) =>
+            studentEntry.studentId?.toString() === studentId,
+        )
+        .map((studentEntry: AttendanceStudent) => ({
           date: doc.date.toISOString().split("T")[0],
           status: studentEntry.status,
         }))

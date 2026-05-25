@@ -15,6 +15,12 @@ import { parseJsonResponse } from "@/lib/api/parseJsonResponse";
 import { messageFromUnknown } from "@/lib/errors/messageFromUnknown";
 import { batchFetch } from "@/lib/batch/batchFetch";
 import { useBatchRoutes } from "@/lib/batch/useBatchRoutes";
+import {
+  EMPTY_TODAY_ATTENDANCE,
+  normalizeBatchRow,
+  type AttendanceStatus,
+  type BatchRow,
+} from "@/components/batches/batchAttendanceShared";
 
 export type BatchesPortal = "teacher" | "senior-teacher";
 
@@ -60,44 +66,6 @@ function myAttendancePath(portal: BatchesPortal, batchId: string) {
 function batchViewPathForPortal(portal: BatchesPortal, batchId: string, seniorDetail: (id: string) => string) {
   return portal === "teacher" ? `/teacher/batches/${batchId}` : seniorDetail(batchId);
 }
-
-export type AttendanceStatus = "Present" | "Absent" | "Half Day";
-
-export type TodayAttendance = {
-  alreadyMarked: boolean;
-  status: AttendanceStatus | null;
-  remarks: string;
-};
-
-export const EMPTY_TODAY_ATTENDANCE: TodayAttendance = {
-  alreadyMarked: false,
-  status: null,
-  remarks: "",
-};
-
-export function normalizeBatchRow(batch: BatchRow): BatchRow {
-  const today = batch.todayAttendance ?? EMPTY_TODAY_ATTENDANCE;
-  return {
-    ...batch,
-    todayAttendance: {
-      alreadyMarked: Boolean(today.alreadyMarked),
-      status: today.status ?? null,
-      remarks: today.remarks ?? "",
-    },
-  };
-}
-
-export type BatchRow = {
-  id: string;
-  batchName: string;
-  courseName: string;
-  batchTiming: string;
-  batchDay: string;
-  batchTime: string;
-  totalStudents: number;
-  batchStatus: string;
-  todayAttendance: TodayAttendance;
-};
 
 type Pagination = { page: number; limit: number; total: number; totalPages: number };
 type RowDraft = { status: AttendanceStatus | null; remarks: string };

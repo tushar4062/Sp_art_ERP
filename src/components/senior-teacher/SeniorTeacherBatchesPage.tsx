@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { Plus, Pencil, Trash2 } from "lucide-react";
-import { BatchesWithAttendancePage, type BatchRow } from "@/components/batches/BatchesWithAttendancePage";
+import { BatchesWithAttendancePage } from "@/components/batches/BatchesWithAttendancePage";
+import type { BatchRow } from "@/components/batches/batchAttendanceShared";
 import { Button } from "@/components/ui/button";
 import { useBatchRoutes } from "@/lib/batch/useBatchRoutes";
 import { useState } from "react";

@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 "use client";
 import * as React from "react";
 import { Slot } from "@radix-ui/react-slot";
@@ -603,7 +602,6 @@ const SidebarMenuSubButton = React.forwardRef<
         size === "sm" && "text-xs",
         size === "md" && "text-sm",
         "group-data-[collapsible=icon]:hidden",
-        // eslint-disable-next-line react-refresh/only-export-components
         className,
       )}
       {...props}

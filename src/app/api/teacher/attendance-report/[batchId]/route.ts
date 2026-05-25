@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import dbConnect from "@/lib/mongodb";
-import BatchModel from "@/lib/models/Batch";
-import TeacherStudentAttendanceModel from "@/lib/models/TeacherStudentAttendance";
+import BatchModel, { type BatchEmbeddedStudent } from "@/lib/models/Batch";
+import TeacherStudentAttendanceModel, {
+  type AttendanceStudent,
+} from "@/lib/models/TeacherStudentAttendance";
 import { TEACHER_SESSION_COOKIE } from "@/lib/auth/portal-session";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ batchId: string }> }) {
@@ -39,12 +41,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
       .lean();
 
     const studentCounts = new Map<string, { presentCount: number; absentCount: number }>();
-    batch.students.forEach((student: any) => {
+    batch.students.forEach((student: BatchEmbeddedStudent) => {
       studentCounts.set(student._id.toString(), { presentCount: 0, absentCount: 0 });
     });
 
-    attendanceDocs.forEach((doc) => {
-      doc.students.forEach((student: any) => {
+    attendanceDocs.forEach(doc => {
+      doc.students.forEach((student: AttendanceStudent) => {
         const key = student.studentId?.toString();
         if (!key) return;
         const counts = studentCounts.get(key);
@@ -57,7 +59,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ batc
       });
     });
 
-    const students = batch.students.map((student: any) => ({
+    const students = batch.students.map((student: BatchEmbeddedStudent) => ({
       _id: student._id.toString(),
       studentName: student.studentName,
       studentEmail: student.studentEmail,
