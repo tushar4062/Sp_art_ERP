@@ -6,39 +6,53 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { useTeacherSessionGuard } from "@/components/teacher/useTeacherSessionGuard";
 import { Calendar } from "lucide-react";
 import { currentMonthString } from "@/lib/dates/attendanceDate";
+import { toast } from "sonner";
 
 type Rec = { attendanceDate: string; status: string; batchId?: string; remarks?: string };
 
 export default function TeacherAttendanceReportPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { sessionOk, checking } = useTeacherSessionGuard();
   const [month, setMonth] = useState(() => currentMonthString());
   const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState<Rec[]>([]);
   const [summary, setSummary] = useState<{ present: number; absent: number; total: number; percentage: number } | null>(null);
 
-  useEffect(() => {
-    fetchReport(month);
-  }, [month]);
-
   const fetchReport = async (m: string) => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/teacher/attendance/report?month=${encodeURIComponent(m)}`, { credentials: "include" });
+      const res = await fetch(`/api/teacher/attendance/report?month=${encodeURIComponent(m)}`, {
+        credentials: "include",
+      });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Failed to load report");
+      if (!res.ok) {
+        const msg = json.error || "Failed to load report";
+        if (res.status === 401) {
+          toast.error("Session expired. Please sign in again as Teacher.");
+          router.replace("/login");
+        } else {
+          toast.error(msg);
+        }
+        throw new Error(msg);
+      }
       setRecords(json.records || []);
       setSummary(json.summary || null);
-    } catch (e) {
-      console.error(e);
+    } catch {
       setRecords([]);
       setSummary(null);
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!sessionOk || checking) return;
+    void fetchReport(month);
+  }, [month, sessionOk, checking]);
 
   const daysInMonth = useMemo(() => {
     const [y, mo] = month.split("-").map(Number);
@@ -58,6 +72,14 @@ export default function TeacherAttendanceReportPage() {
     if (s === "Absent") return "bg-rose-600 text-white";
     return "bg-slate-300 text-slate-800";
   };
+
+  if (checking || !sessionOk) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
+        Verifying teacher session…
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-5xl mx-auto py-8 space-y-6">

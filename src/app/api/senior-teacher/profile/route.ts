@@ -3,6 +3,7 @@ import { z } from "zod";
 import dbConnect from "@/lib/mongodb";
 import SeniorTeacher, { type SeniorTeacherDocument } from "@/lib/models/SeniorTeacher";
 import { requireSeniorTeacherFromRequest } from "@/lib/auth/require-senior-teacher";
+import { getSeniorTeacherProfileEditAccess } from "@/lib/senior-teacher/seniorTeacherQueryAccess";
 
 export const runtime = "nodejs";
 
@@ -70,7 +71,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ success: true, data: { profile: seniorToProfile(senior) } });
+    const access = await getSeniorTeacherProfileEditAccess(auth.seniorTeacher.id);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        profile: seniorToProfile(senior),
+        canEditProfile: access.canEditProfile,
+        latestQuery: access.latestQuery,
+      },
+    });
   } catch (error) {
     console.error("[senior-teacher/profile GET]", error);
     return NextResponse.json({ success: false, error: "Failed to load profile" }, { status: 500 });
@@ -92,6 +102,17 @@ export async function PUT(request: NextRequest) {
     }
 
     await dbConnect();
+
+    const access = await getSeniorTeacherProfileEditAccess(auth.seniorTeacher.id);
+    if (!access.canEditProfile) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Profile editing is locked. Submit a query and wait for admin approval.",
+        },
+        { status: 403 },
+      );
+    }
 
     const data = parsed.data;
     const $set: Record<string, string> = {};

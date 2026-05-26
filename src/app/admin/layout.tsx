@@ -4,7 +4,7 @@ import { ReactNode } from "react";
 import {
   LayoutDashboard, Users, GraduationCap, ClipboardCheck, TrendingUp,
 
-  Sparkles, Wallet, Boxes, CreditCard, Award, Bell, MessageSquareHeart, MessageSquare, Shield, UserPlus, Package, BookOpen, CalendarOff,
+  Sparkles, Wallet, Boxes, CreditCard, Award, Bell, MessageSquareHeart, MessageSquare, Shield, UserPlus, Package, BookOpen, CalendarOff, HelpCircle,
 
 
 } from "lucide-react";
@@ -19,6 +19,7 @@ const adminNav: NavItem[] = [
   { to: "/admin/courses", label: "Courses", icon: BookOpen },
   { to: "/admin/enrolled", label: "Enrolled", icon: ClipboardCheck },
   { to: "/admin/students", label: "Students", icon: Users },
+  { to: "/admin/queries", label: "Queries", icon: HelpCircle },
   { to: "/admin/teachers", label: "Teachers", icon: GraduationCap },
   { to: "/admin/senior-teachers", label: "Senior Teachers", icon: GraduationCap },
   { to: "/admin/attendance", label: "Attendance", icon: ClipboardCheck },

@@ -4,6 +4,7 @@ import dbConnect from "@/lib/mongodb";
 import { apiError, apiSuccess } from "@/lib/api-response";
 import { requireStudentFromRequest } from "@/lib/auth/require-student";
 import { findStudentById, toProfileDto, updateStudentProfile } from "@/lib/student-portal";
+import { getStudentProfileEditAccess } from "@/lib/student/studentQueryAccess";
 
 export const runtime = "nodejs";
 
@@ -30,7 +31,13 @@ export async function GET(request: NextRequest) {
       return apiError("Student not found in students collection", 404);
     }
 
-    return apiSuccess({ profile: toProfileDto(student) });
+    const access = await getStudentProfileEditAccess(auth.student.id);
+
+    return apiSuccess({
+      profile: toProfileDto(student),
+      canEditProfile: access.canEditProfile,
+      latestQuery: access.latestQuery,
+    });
   } catch (error) {
     console.error("[student/profile GET]", error);
     return apiError("Failed to load profile", 500);
@@ -49,6 +56,14 @@ export async function PUT(request: NextRequest) {
     }
 
     await dbConnect();
+
+    const access = await getStudentProfileEditAccess(auth.student.id);
+    if (!access.canEditProfile) {
+      return apiError(
+        "Profile editing is locked. Submit a query and wait for admin approval.",
+        403,
+      );
+    }
 
     const student = await updateStudentProfile(auth.student.id, "", parsed.data);
 

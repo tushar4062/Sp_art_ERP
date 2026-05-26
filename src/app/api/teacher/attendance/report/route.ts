@@ -2,17 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import dbConnect from "@/lib/mongodb";
 import TeacherAttendanceModel from "@/lib/models/TeacherAttendance";
-import { TEACHER_SESSION_COOKIE } from "@/lib/auth/portal-session";
+import { requireTeacherFromRequest } from "@/lib/auth/require-teacher";
 import { currentMonthString, monthDateBounds } from "@/lib/dates/attendanceDate";
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireTeacherFromRequest(req);
+    if (!auth.ok) return auth.response;
+
     await dbConnect();
 
-    const teacherId = req.cookies.get(TEACHER_SESSION_COOKIE)?.value;
-    if (!teacherId || !mongoose.Types.ObjectId.isValid(teacherId)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    const teacherId = auth.teacher.id;
 
     const { searchParams } = new URL(req.url);
     const month = searchParams.get("month");
