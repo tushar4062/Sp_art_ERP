@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Home, Pencil, Save, UploadCloud, User } from "lucide-react";
+import { Home, MessageSquarePlus, Pencil, Save, UploadCloud, User } from "lucide-react";
+import { SeniorTeacherQueryRequestModal } from "@/components/senior-teacher/SeniorTeacherQueryRequestModal";
+import { QueryStatusBadge } from "@/components/student/QueryStatusBadge";
+import type { SeniorTeacherQueryDto } from "@/lib/senior-teacher/seniorTeacherQueryAccess";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -73,6 +76,9 @@ export function SeniorTeacherProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [queryOpen, setQueryOpen] = useState(false);
+  const [canEditProfile, setCanEditProfile] = useState(false);
+  const [latestQuery, setLatestQuery] = useState<SeniorTeacherQueryDto | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadProfile = useCallback(async () => {
@@ -86,6 +92,8 @@ export function SeniorTeacherProfilePage() {
       const p = json.data.profile as SeniorTeacherProfileData;
       setProfile(p);
       setForm(toForm(p));
+      setCanEditProfile(Boolean(json.data.canEditProfile));
+      setLatestQuery((json.data.latestQuery as SeniorTeacherQueryDto | null) ?? null);
     } catch (e) {
       toast.error((e as Error).message);
       router.push("/login");
@@ -97,6 +105,19 @@ export function SeniorTeacherProfilePage() {
   useEffect(() => {
     loadProfile();
   }, [loadProfile]);
+
+  const refreshQueryStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/senior-teacher/queries?limit=1", { credentials: "include" });
+      const json = await res.json();
+      if (res.ok) {
+        setCanEditProfile(Boolean(json.data?.canEditProfile));
+        setLatestQuery((json.data?.latestQuery as SeniorTeacherQueryDto | null) ?? null);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const handleImageUpload = async (file: File) => {
     setUploading(true);
@@ -209,9 +230,30 @@ export function SeniorTeacherProfilePage() {
         </div>
 
         <div className="p-6 space-y-8">
+          {latestQuery && (
+            <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/80 bg-muted/30 px-3 py-2 text-sm">
+              <span className="text-muted-foreground">Latest query:</span>
+              <QueryStatusBadge status={latestQuery.status} />
+              {latestQuery.status === "pending" && (
+                <span className="text-xs text-muted-foreground">
+                  Edit Profile unlocks after admin approval
+                </span>
+              )}
+            </div>
+          )}
+
           <div className="flex flex-wrap gap-2">
             {!editing ? (
-              <Button className="rounded-xl gradient-primary text-white border-0" onClick={() => setEditing(true)}>
+              <Button
+                className="rounded-xl gradient-primary text-white border-0"
+                onClick={() => setEditing(true)}
+                disabled={!canEditProfile}
+                title={
+                  canEditProfile
+                    ? "Edit your profile"
+                    : "Submit and get a query approved to edit your profile"
+                }
+              >
                 <Pencil className="w-4 h-4 mr-1" /> Edit Profile
               </Button>
             ) : (
@@ -228,10 +270,28 @@ export function SeniorTeacherProfilePage() {
                 </Button>
               </>
             )}
+            <Button
+              variant="outline"
+              className="rounded-xl border-primary/30 text-primary hover:bg-primary/5"
+              onClick={() => setQueryOpen(true)}
+            >
+              <MessageSquarePlus className="w-4 h-4 mr-1" /> Request Query Form
+            </Button>
             <Button variant="outline" className="rounded-xl" onClick={() => router.push("/senior-teacher")}>
               <Home className="w-4 h-4 mr-1" /> Home
             </Button>
           </div>
+
+          <SeniorTeacherQueryRequestModal
+            open={queryOpen}
+            onOpenChange={setQueryOpen}
+            defaultName={profile.fullName}
+            defaultEmail={profile.email}
+            onSubmitted={() => {
+              void refreshQueryStatus();
+              void loadProfile();
+            }}
+          />
 
           <div>
             <h3 className="font-display font-bold text-lg mb-4 text-foreground">Core details</h3>

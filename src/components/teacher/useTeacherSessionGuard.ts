@@ -24,14 +24,18 @@ export function useTeacherSessionGuard() {
       try {
         const res = await fetch("/api/teacher/session", { credentials: "include" });
         if (cancelled) return;
-        if (res.status === 401) {
-          logout();
-          toast.error("Session expired. Please sign in again as Teacher.");
-          router.replace("/login");
+        if (!res.ok) {
+          if (res.status === 401) {
+            logout();
+            toast.error("Session expired. Please sign in again as Teacher.");
+            router.replace("/login");
+          } else {
+            toast.error("Could not verify teacher session. Try again or sign in.");
+          }
+          setSessionOk(false);
           return;
         }
-        // Allow portal if session check fails for transient/server errors
-        setSessionOk(res.ok || res.status >= 500);
+        setSessionOk(true);
       } catch {
         if (!cancelled) setSessionOk(false);
       } finally {

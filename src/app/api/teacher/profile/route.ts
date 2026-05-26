@@ -3,6 +3,7 @@ import { z } from "zod";
 import dbConnect from "@/lib/mongodb";
 import Teacher, { type TeacherDocument } from "@/lib/models/Teacher";
 import { requireTeacherFromRequest } from "@/lib/auth/require-teacher";
+import { getTeacherProfileEditAccess } from "@/lib/teacher/teacherQueryAccess";
 
 export const runtime = "nodejs";
 
@@ -62,7 +63,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Teacher not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: { profile: teacherToProfile(teacher) } });
+    const access = await getTeacherProfileEditAccess(auth.teacher.id);
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        profile: teacherToProfile(teacher),
+        canEditProfile: access.canEditProfile,
+        latestQuery: access.latestQuery,
+      },
+    });
   } catch (error) {
     console.error("[teacher/profile GET]", error);
     return NextResponse.json({ success: false, error: "Failed to load profile" }, { status: 500 });
@@ -84,6 +94,18 @@ export async function PUT(request: NextRequest) {
     }
 
     await dbConnect();
+
+    const access = await getTeacherProfileEditAccess(auth.teacher.id);
+    if (!access.canEditProfile) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Profile editing is locked. Submit a query and wait for admin approval.",
+        },
+        { status: 403 },
+      );
+    }
+
     const teacher = await Teacher.findById(auth.teacher.id);
     if (!teacher) {
       return NextResponse.json({ success: false, error: "Teacher not found" }, { status: 404 });

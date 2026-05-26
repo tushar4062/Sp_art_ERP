@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Home, Pencil, Save, UploadCloud, User } from "lucide-react";
+import { Home, MessageSquarePlus, Pencil, Save, UploadCloud, User } from "lucide-react";
+import { StudentQueryRequestModal } from "@/components/student/StudentQueryRequestModal";
+import { QueryStatusBadge } from "@/components/student/QueryStatusBadge";
+import type { StudentQueryDto } from "@/lib/student/studentQueryAccess";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -71,6 +74,9 @@ export function StudentProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [queryOpen, setQueryOpen] = useState(false);
+  const [canEditProfile, setCanEditProfile] = useState(false);
+  const [latestQuery, setLatestQuery] = useState<StudentQueryDto | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadProfile = useCallback(async () => {
@@ -84,6 +90,8 @@ export function StudentProfilePage() {
       const p = data.data.profile as StudentProfileData;
       setProfile(p);
       setForm(profileToForm(p));
+      setCanEditProfile(Boolean(data.data.canEditProfile));
+      setLatestQuery((data.data.latestQuery as StudentQueryDto | null) ?? null);
       if (user?.email !== p.email || user?.name !== p.fullName) {
         login("student", p.email, p.fullName);
       }
@@ -95,8 +103,21 @@ export function StudentProfilePage() {
     }
   }, [login, router, user?.email, user?.name]);
 
+  const refreshQueryStatus = useCallback(async () => {
+    try {
+      const res = await fetch("/api/student/queries", { credentials: "include" });
+      const data = await res.json();
+      if (res.ok) {
+        setCanEditProfile(Boolean(data.data?.canEditProfile));
+        setLatestQuery((data.data?.latestQuery as StudentQueryDto | null) ?? null);
+      }
+    } catch {
+      /* ignore */
+    }
+  }, []);
+
   useEffect(() => {
-    loadProfile();
+    void loadProfile();
   }, [loadProfile]);
 
   const handleImageUpload = async (file: File) => {
@@ -209,9 +230,30 @@ export function StudentProfilePage() {
         </div>
 
         <div className="p-6 space-y-6">
+            {latestQuery && (
+              <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border/80 bg-muted/30 px-3 py-2 text-sm">
+                <span className="text-muted-foreground">Latest query:</span>
+                <QueryStatusBadge status={latestQuery.status} />
+                {latestQuery.status === "pending" && (
+                  <span className="text-xs text-muted-foreground">
+                    Edit Profile unlocks after admin approval
+                  </span>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2">
             {!editing ? (
-              <Button className="rounded-xl gradient-primary text-white border-0" onClick={() => setEditing(true)}>
+              <Button
+                className="rounded-xl gradient-primary text-white border-0"
+                onClick={() => setEditing(true)}
+                disabled={!canEditProfile}
+                title={
+                  canEditProfile
+                    ? "Edit your profile"
+                    : "Submit and get a query approved to edit your profile"
+                }
+              >
                 <Pencil className="w-4 h-4 mr-1" /> Edit Profile
               </Button>
             ) : (
@@ -228,11 +270,29 @@ export function StudentProfilePage() {
                 </Button>
               </>
             )}
+            <Button
+              variant="outline"
+              className="rounded-xl border-primary/30 text-primary hover:bg-primary/5"
+              onClick={() => setQueryOpen(true)}
+            >
+              <MessageSquarePlus className="w-4 h-4 mr-1" /> Request Query Form
+            </Button>
             <Button variant="outline" className="rounded-xl" onClick={() => router.push("/student/dashboard")}>
               <Home className="w-4 h-4 mr-1" /> Home
             </Button>
 
           </div>
+
+          <StudentQueryRequestModal
+            open={queryOpen}
+            onOpenChange={setQueryOpen}
+            defaultName={profile.fullName}
+            defaultEmail={profile.email}
+            onSubmitted={() => {
+              void refreshQueryStatus();
+              void loadProfile();
+            }}
+          />
 
           <div className="grid gap-4 sm:grid-cols-2">
             {editing ? (
