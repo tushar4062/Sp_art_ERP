@@ -242,7 +242,13 @@ export default function AdminCredentialsPage() {
 
       if (editing) {
         setRows(prev => prev.map(row => row.id === editing.id ? newRow : row));
-        toast.success('Credential updated successfully');
+        if (result.notification?.sent) {
+          toast.success('Credentials updated and notification email sent successfully.');
+        } else if (result.notification && !result.notification.sent) {
+          toast.error('Credentials updated but notification email failed to send.');
+        } else {
+          toast.success('Credential updated successfully');
+        }
       } else {
         setRows(prev => [newRow, ...prev]);
         if (result.emailSent === false) {
