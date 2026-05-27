@@ -51,10 +51,13 @@ export default function EnrolledPage() {
     try {
       setLoading(true);
       const res = await fetch('/api/admin/enrollments', { credentials: 'include' });
-      if (!res.ok) {
-        throw new Error('Failed to fetch enrollments');
-      }
       const data = await res.json();
+      
+      if (!res.ok) {
+        const errorMsg = data?.details || data?.error || 'Failed to fetch enrollments';
+        console.error('API Error:', { status: res.status, error: errorMsg, data });
+        throw new Error(errorMsg);
+      }
       setEnrollments(data.enrollments);
 
       // Group enrollments by student
@@ -78,10 +81,11 @@ export default function EnrolledPage() {
         a.studentName.localeCompare(b.studentName)
       ));
     } catch (error) {
-      console.error('Error fetching enrollments:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load enrollments';
+      console.error('Error fetching enrollments:', errorMessage);
       toast({
         title: 'Error',
-        description: 'Failed to load enrollments',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {

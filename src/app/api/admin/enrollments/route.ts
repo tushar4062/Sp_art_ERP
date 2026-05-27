@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import type { CourseDocument } from '@/lib/models/Course';
 import type { CourseEnrollmentDocument } from '@/lib/models/CourseEnrollment';
 import type { StudentDocument } from '@/lib/models/Student';
@@ -20,17 +21,23 @@ export async function GET(request: NextRequest) {
     const auth = await requireAdminFromRequest(request);
     if (!auth.ok) return auth.response;
 
-    console.log('[enrollments] admin authenticated, connecting to DB');
     await dbConnect();
-    console.log('[enrollments] db connected');
+
+    // Ensure models are registered by accessing them
+    const studentModel = Student;
+    const courseModel = Course;
 
     // Get all enrollments with populated student and course details
-    console.log('[enrollments] querying enrollments');
     const enrollments = await CourseEnrollment.find()
-      .populate('studentId')
-      .populate('courseId')
+      .populate({
+        path: 'studentId',
+        model: studentModel
+      })
+      .populate({
+        path: 'courseId',
+        model: courseModel
+      })
       .sort({ enrollmentDate: -1 });
-    console.log(`[enrollments] found ${enrollments.length} records`);
 
     const populatedEnrollments = enrollments as unknown as PopulatedEnrollment[];
 
@@ -81,9 +88,10 @@ export async function GET(request: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
-    console.error('Error fetching enrollments:', error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Error fetching enrollments:', errorMessage);
     return NextResponse.json(
-      { error: 'Failed to fetch enrollments' },
+      { error: 'Failed to fetch enrollments', details: errorMessage },
       { status: 500 }
     );
   }
