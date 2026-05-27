@@ -32,13 +32,13 @@ export async function POST(request: NextRequest) {
     if (!existing) {
       return apiError(
         "No student found in the Students module. Ask admin to add your record first.",
-        404,
+        401,
       );
     }
 
     const student = await authenticateStudentLogin(email, password);
     if (!student) {
-      return apiError("Invalid password", 401);
+      return apiError("Invalid email or password", 401);
     }
 
     const response = apiSuccess({

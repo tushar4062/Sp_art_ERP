@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import Course from './Course';
 
 export interface CourseEnrollmentDocument extends mongoose.Document {
   studentId: mongoose.Types.ObjectId;
@@ -12,6 +13,12 @@ export interface CourseEnrollmentDocument extends mongoose.Document {
   orderId?: string;
   amount?: number;
   paymentStatus?: string;
+  paymentMethod?: string;
+  discountPercentage?: number;
+  discountAmount?: number;
+  taxAmount?: number;
+  invoiceId?: string;
+  invoiceGeneratedAt?: Date;
 }
 
 const CourseEnrollmentSchema = new mongoose.Schema<CourseEnrollmentDocument>(
@@ -46,6 +53,12 @@ const CourseEnrollmentSchema = new mongoose.Schema<CourseEnrollmentDocument>(
     orderId: { type: String, unique: true, sparse: true }, // Unique to prevent duplicate payment processing
     amount: { type: Number },
     paymentStatus: { type: String },
+    paymentMethod: { type: String, default: 'Razorpay' },
+    discountPercentage: { type: Number, default: 0 },
+    discountAmount: { type: Number, default: 0 },
+    taxAmount: { type: Number, default: 0 },
+    invoiceId: { type: String, unique: true, sparse: true },
+    invoiceGeneratedAt: { type: Date },
   },
   {
     timestamps: true,

@@ -3,7 +3,10 @@ import crypto from 'crypto';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/mongodb';
 import CourseEnrollment from '@/lib/models/CourseEnrollment';
+import Course from '@/lib/models/Course';
+import Student from '@/lib/models/Student';
 import { requireStudentFromRequest } from '@/lib/auth/require-student';
+import { sendCourseEnrollmentEmail } from '@/lib/email/courseEnrollmentEmail';
 
 type VerifyPaymentRequest = {
   razorpay_order_id: string;
@@ -132,12 +135,22 @@ export async function POST(request: NextRequest) {
     }
     console.log(`✓ No duplicate found`);
 
-    // Prepare enrollment payload
-    console.log(`\n→ Preparing enrollment payload...`);
-    
+    // Load course details for invoice metadata
+    console.log(`\n→ Loading course details for invoice...`);
+    const course = await Course.findById(courseId);
+    if (!course) {
+      console.error(`✗ Course not found for courseId ${courseId}`);
+      return NextResponse.json({ error: 'Course not found' }, { status: 404 });
+    }
+
     const studentId = new mongoose.Types.ObjectId(auth.student.id);
     const courseIdObj = new mongoose.Types.ObjectId(courseId);
-    
+    const amountPaid = Number(amount || 0);
+    const discountAmount = Math.max(0, (course.totalFees ?? 0) - amountPaid);
+    const invoiceId = `INV-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
+    const supportEmail = process.env.EMAIL_FROM || process.env.SMTP_FROM || 'support@littlebrushes.com';
+    const supportPhone = process.env.SUPPORT_PHONE || '+91 90000 00000';
+
     const payload = {
       studentId,
       courseId: courseIdObj,
@@ -146,8 +159,14 @@ export async function POST(request: NextRequest) {
       completionPercentage: 0,
       paymentId: razorpay_payment_id,
       orderId: razorpay_order_id,
-      amount: Number(amount || 0),
+      amount: amountPaid,
       paymentStatus: 'paid' as const,
+      paymentMethod: 'Razorpay',
+      discountPercentage: course.discountPercentage ?? 0,
+      discountAmount,
+      taxAmount: 0,
+      invoiceId,
+      invoiceGeneratedAt: new Date(),
     };
 
     console.log(`✓ Payload prepared:`);
@@ -209,6 +228,36 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
     console.log(`✓ Enrollment verified in database`);
+
+    // Send invoice email to student
+    try {
+      const student = await Student.findById(auth.student.id);
+      if (student?.email) {
+        await sendCourseEnrollmentEmail({
+          studentEmail: student.email,
+          studentName: student.fullName,
+          courseTitle: course.courseTitle,
+          courseCode: course.courseCode,
+          enrollmentDate: enrollment.enrollmentDate.toISOString(),
+          amountPaid,
+          paymentMethod: 'Razorpay',
+          transactionId: razorpay_payment_id,
+          orderId: razorpay_order_id,
+          invoiceId: invoiceId,
+          supportEmail,
+          supportPhone,
+          courseDurationMonths: course.duration,
+          discountPercentage: course.discountPercentage ?? 0,
+          discountAmount,
+          gstNumber: process.env.GST_NUMBER,
+        });
+        console.log('✓ Enrollment invoice email sent successfully');
+      } else {
+        console.warn('⚠️ Student record missing email; skipping invoice email');
+      }
+    } catch (mailErr) {
+      console.error('✗ Failed to send enrollment invoice email:', mailErr instanceof Error ? mailErr.message : String(mailErr));
+    }
 
     const duration = Date.now() - startTime;
     console.log(`\n✓ ✓ ✓ PAYMENT VERIFICATION COMPLETE ✓ ✓ ✓`);

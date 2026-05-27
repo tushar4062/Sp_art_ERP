@@ -33,6 +33,7 @@ interface Course {
 
 interface EnrolledCourse {
   courseId: string;
+  enrollmentId: string;
 }
 
 export function StudentCoursesPage() {
@@ -84,8 +85,9 @@ export function StudentCoursesPage() {
         const data = await response.json();
 
         if (response.ok) {
-          const enrolledCourseIds = (data.enrolledCourses as { courseId: string }[]).map((course) => ({
+          const enrolledCourseIds = (data.enrolledCourses as { courseId: string; enrollmentId: string }[]).map((course) => ({
             courseId: course.courseId,
+            enrollmentId: course.enrollmentId,
           }));
           setEnrolledCourses(enrolledCourseIds);
         }
@@ -130,8 +132,9 @@ export function StudentCoursesPage() {
       const data = await response.json();
 
       if (response.ok) {
-        const enrolledCourseIds = (data.enrolledCourses as { courseId: string }[]).map((course) => ({
+        const enrolledCourseIds = (data.enrolledCourses as { courseId: string; enrollmentId: string }[]).map((course) => ({
           courseId: course.courseId,
+          enrollmentId: course.enrollmentId,
         }));
         setEnrolledCourses(enrolledCourseIds);
       }

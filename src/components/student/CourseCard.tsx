@@ -9,7 +9,8 @@ import {
   IndianRupee, 
   User, 
   CheckCircle, 
-  Loader2 
+  Loader2,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
@@ -49,6 +50,7 @@ export function CourseCard({
   onEnrollSuccess,
 }: CourseCardProps) {
   const [loading, setLoading] = useState(false);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [enrolled, setEnrolled] = useState(isEnrolled);
   const router = useRouter();
 
@@ -173,6 +175,48 @@ export function CourseCard({
     }
   };
 
+  const getInvoiceFileName = () => {
+    const cleanTitle = courseTitle.replace(/\s+/g, '-').replace(/[^a-zA-Z0-9-_]/g, '').toLowerCase();
+    return `invoice-${cleanTitle}.pdf`;
+  };
+
+  const handleDownloadInvoice = async () => {
+    setInvoiceLoading(true);
+    try {
+      const res = await fetch(`/api/invoice/download/${courseId}`, {
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(async () => {
+          const text = await res.text().catch(() => null);
+          return { error: text || 'Unable to download invoice' };
+        });
+        throw new Error(body?.error || 'Unable to download invoice');
+      }
+
+      const blob = await res.blob();
+      const disposition = res.headers.get('content-disposition') || '';
+      const match = disposition.match(/filename="?([^";]+)"?/i);
+      const filename = match?.[1] || getInvoiceFileName();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+
+      toast({ title: 'Invoice downloaded successfully', description: 'Your invoice has been downloaded.', variant: 'default' });
+    } catch (error) {
+      console.error('Invoice download failed:', error);
+      toast({ title: 'Download Error', description: error instanceof Error ? error.message : 'Could not download the invoice.', variant: 'destructive' });
+    } finally {
+      setInvoiceLoading(false);
+    }
+  };
+
   const handleView = () => {
     router.push(`/student/courses/${courseId}`);
   };
@@ -273,34 +317,60 @@ export function CourseCard({
           ) : null}
         </div>
 
-        {/* Actions: View + Enroll */}
-        <div className="grid gap-3 sm:grid-cols-2 pt-2">
-          <Button onClick={handleView} disabled={loading} variant="outline" className="flex-1 min-w-0">
+        {/* Actions: View + Enroll / Invoice */}
+        <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center">
+          <Button
+            onClick={handleView}
+            disabled={loading}
+            variant="outline"
+            className="flex-1 min-w-0 rounded-[22px] border-blue-500 bg-white text-slate-900 shadow-sm shadow-slate-200/60 py-3 px-4 text-sm font-semibold transition duration-300 ease-out hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-blue-200/40"
+          >
             View Course
           </Button>
-          <Button
-            onClick={handleEnroll}
-            disabled={loading || enrolled || status !== 'active'}
-            className={cn('flex-1 rounded-3xl transition-all duration-300',
-              enrolled
-                ? 'bg-success/15 text-success hover:bg-success/15'
-                : 'bg-primary hover:bg-primary/90'
-            )}
-          >
-            {loading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Processing...
-              </>
-            ) : enrolled ? (
-              <>
-                <CheckCircle className="mr-2 h-4 w-4" />
+
+          {enrolled ? (
+            <>
+              <Button
+                disabled
+                className="flex-1 min-w-0 rounded-[22px] bg-emerald-100/95 text-emerald-900 border border-emerald-200 shadow-sm shadow-emerald-300/20 py-3 px-4 text-sm font-semibold cursor-not-allowed backdrop-blur-sm"
+              >
+                <CheckCircle className="mr-2 h-4 w-4 text-emerald-700" />
                 Enrolled
-              </>
-            ) : (
-              'Enroll Now'
-            )}
-          </Button>
+              </Button>
+              <Button
+                onClick={handleDownloadInvoice}
+                disabled={invoiceLoading}
+                className="flex-1 min-w-0 rounded-[22px] bg-gradient-to-r from-sky-500 via-cyan-500 to-blue-600 text-white shadow-lg py-3 px-4 text-sm font-semibold transition transform duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_18px_50px_-25px_rgba(56,189,248,0.45)] hover:animate-pulse"
+              >
+                {invoiceLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Downloading...
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center gap-2 whitespace-nowrap">
+                    <Download className="h-4 w-4" />
+                    <span>Invoice</span>
+                  </div>
+                )}
+              </Button>
+            </>
+          ) : (
+            <Button
+              onClick={handleEnroll}
+              disabled={loading || status !== 'active'}
+              className="flex-1 min-w-0 rounded-[22px] bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-slate-900/10 py-3 px-4 text-sm font-semibold transition duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_18px_45px_-24px_rgba(59,130,246,0.85)]"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                'Enroll Now'
+              )}
+            </Button>
+          )}
         </div>
       </div>
     </div>

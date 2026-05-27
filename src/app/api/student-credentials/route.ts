@@ -4,11 +4,16 @@ import dbConnect from '@/lib/mongodb';
 import StudentCredentials from '@/lib/models/StudentCredentials';
 import Student from '@/lib/models/Student';
 import { sendAccountCreationEmail } from '@/lib/sendEmail';
+import { requireAdminFromRequest } from '@/lib/auth/require-admin';
 
 export const runtime = 'nodejs';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Require admin session/token to access credentials (passwords included)
+    const adminCheck = await requireAdminFromRequest(request);
+    if (!adminCheck.ok) return adminCheck.response;
+
     await dbConnect();
     const credentials = await StudentCredentials.find().sort({ createdAt: -1 });
     return NextResponse.json({
@@ -18,6 +23,7 @@ export async function GET() {
         name: doc.name,
         username: doc.username,
         email: doc.email,
+        // Password is included only for verified admin requests
         password: doc.password,
         mobileNumber: doc.mobileNumber,
         role: doc.role,
@@ -33,6 +39,10 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    // Require admin session/token to create credentials
+    const adminCheck = await requireAdminFromRequest(request);
+    if (!adminCheck.ok) return adminCheck.response;
+
     await dbConnect();
 
     const body = await request.json();

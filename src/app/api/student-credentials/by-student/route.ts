@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import StudentCredentials from '@/lib/models/StudentCredentials';
+import { requireAdminFromRequest } from '@/lib/auth/require-admin';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest) {
+  // Require admin session/token to access individual student credential
+  const adminCheck = await requireAdminFromRequest(request);
+  if (!adminCheck.ok) return adminCheck.response;
+
   try {
     await dbConnect();
 

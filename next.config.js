@@ -22,11 +22,26 @@ const nextConfig = {
     ignoreDuringBuilds: false,
   },
   // Cold / on-demand compilation can exceed the default chunk load timeout in dev (ChunkLoadError on app/layout.js).
-  webpack: (config, { dev }) => {
+  webpack: (config, { dev, isServer }) => {
     config.output = config.output || {};
 
     if (dev) {
       config.output.chunkLoadTimeout = 300000; // 5 minutes (default is often 120s)
+    }
+
+    if (isServer) {
+      if (typeof config.externals === 'function') {
+        const originalExternals = config.externals;
+        config.externals = async (context, request, callback) => {
+          if (request === 'pdfkit') {
+            return callback(null, 'commonjs pdfkit');
+          }
+          return originalExternals(context, request, callback);
+        };
+      } else {
+        config.externals = config.externals || [];
+        config.externals.push('pdfkit');
+      }
     }
 
     return config;

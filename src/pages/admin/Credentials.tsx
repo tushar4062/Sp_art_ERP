@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Search, Shield } from "lucide-react";
+import { Plus, Search, Shield, Eye, EyeOff } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { adminSessionAuthHeaders } from "@/lib/auth/admin-session-client";
 
 const credentialsSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -42,6 +43,7 @@ export default function CredentialsPage() {
   const [open, setOpen] = useState(false);
   const [rows, setRows] = useState<CredentialRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
 
   const credentialsForm = useForm<CredentialForm>({
     resolver: zodResolver(credentialsSchema),
@@ -57,7 +59,16 @@ export default function CredentialsPage() {
   const fetchCredentials = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/student-credentials');
+      const response = await fetch('/api/student-credentials', {
+        credentials: 'include',
+        headers: {
+          ...adminSessionAuthHeaders(),
+        },
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to fetch');
+      }
       const result = await response.json();
       setRows(result.credentials ?? []);
     } catch (error) {
@@ -141,7 +152,25 @@ export default function CredentialsPage() {
             columns={[
               { key: 'name', header: 'Name' },
               { key: 'email', header: 'Email' },
-              { key: 'password', header: 'Password', render: row => row.password ?? 'Not stored' },
+              { key: 'password', header: 'Password', render: (row: CredentialRow) => {
+                const visible = Boolean(visiblePasswords[row.id]);
+                const display = row.password ? (visible ? row.password : '••••••••') : 'Not stored';
+                return (
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm truncate max-w-[180px]">{display}</span>
+                    {row.password && (
+                      <button
+                        type="button"
+                        aria-label={visible ? 'Hide password' : 'Show password'}
+                        className="p-1 rounded hover:bg-muted"
+                        onClick={() => setVisiblePasswords(prev => ({ ...prev, [row.id]: !prev[row.id] }))}
+                      >
+                        {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    )}
+                  </div>
+                );
+              } },
               { key: 'mobile', header: 'Mobile', render: row => row.mobileNumber ?? '-' },
               { key: 'status', header: 'Status', render: row => (
                 <span className="inline-flex rounded-full bg-success/15 px-2 py-1 text-[11px] font-medium text-success">{row.accountStatus}</span>

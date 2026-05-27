@@ -3,19 +3,33 @@ import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
 import Credential from '@/lib/models/Credentials';
 import Student from '@/lib/models/Student';
+import StudentCredentials from '@/lib/models/StudentCredentials';
 import Teacher from '@/lib/models/Teacher';
 import SeniorTeacher from '@/lib/models/SeniorTeacher';
 import { normalizeEmail } from '@/lib/auth/normalizeEmail';
 import { findCredentialByEmail } from '@/lib/auth/findCredential';
+import { requireAdminFromRequest } from '@/lib/auth/require-admin';
 
 export const runtime = 'nodejs';
 const roles = ['student', 'teacher', 'senior_teacher'] as const;
 type RouteContext = { params: Promise<{ id: string }> };
+type UpdateCredentialPayload = {
+  name?: string;
+  email?: string;
+  password?: string;
+  confirmPassword?: string;
+  role?: string;
+  accountStatus?: string;
+  mobileNumber?: string;
+};
 
 export async function GET(
   request: NextRequest,
   context: RouteContext
 ) {
+  const adminCheck = await requireAdminFromRequest(request);
+  if (!adminCheck.ok) return adminCheck.response;
+
   const { id } = await context.params;
   try {
     await dbConnect();
@@ -43,14 +57,9 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  request: NextRequest,
-  context: RouteContext
-) {
-  const { id } = await context.params;
+export async function updateCredentialById(id: string, body: UpdateCredentialPayload) {
   try {
     await dbConnect();
-    const body = await request.json();
     const {
       name,
       email,
@@ -60,6 +69,11 @@ export async function PUT(
       accountStatus,
       mobileNumber,
     } = body;
+
+    const existingCredential = await Credential.findById(id);
+    if (!existingCredential) {
+      return NextResponse.json({ error: 'Credential not found' }, { status: 404 });
+    }
 
     const updateData: Record<string, unknown> = {};
 
@@ -110,6 +124,47 @@ export async function PUT(
       return NextResponse.json({ error: 'Credential not found' }, { status: 404 });
     }
 
+    const targetRole = (updateData.role as typeof roles[number]) ?? existingCredential.role;
+    const originalEmail = existingCredential.email;
+    const changesForSync: Record<string, unknown> = {};
+    if (updateData.name && updateData.name !== existingCredential.name) {
+      changesForSync.name = updateData.name;
+    }
+    if (updateData.email && updateData.email !== existingCredential.email) {
+      changesForSync.email = updateData.email;
+    }
+    if (updateData.passwordHash) {
+      changesForSync.passwordHash = updateData.passwordHash;
+    }
+
+    if (Object.keys(changesForSync).length > 0) {
+      try {
+        await StudentCredentials.findOneAndUpdate(
+          { email: originalEmail.toLowerCase() },
+          changesForSync,
+          { new: true }
+        );
+      } catch (syncError) {
+        console.error('Warning: Failed to sync updates to StudentCredentials:', syncError);
+      }
+    }
+
+    if (targetRole === 'student') {
+      try {
+        const student = await Student.findOne({
+          email: { $regex: new RegExp(`^${originalEmail.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, 'i') },
+        });
+        if (student) {
+          if (updateData.email) student.email = updateData.email as string;
+          if (updateData.passwordHash) student.passwordHash = updateData.passwordHash as string;
+          if (updateData.name) student.fullName = updateData.name as string;
+          await student.save();
+        }
+      } catch (syncError) {
+        console.error('Warning: Failed to sync updates to Student record:', syncError);
+      }
+    }
+
     return NextResponse.json({
       message: 'Credential updated successfully',
       credentials: {
@@ -130,10 +185,25 @@ export async function PUT(
   }
 }
 
+export async function PUT(
+  request: NextRequest,
+  context: RouteContext
+) {
+  const adminCheck = await requireAdminFromRequest(request);
+  if (!adminCheck.ok) return adminCheck.response;
+
+  const { id } = await context.params;
+  const body = await request.json();
+  return updateCredentialById(id, body);
+}
+
 export async function DELETE(
   request: NextRequest,
   context: RouteContext
 ) {
+  const adminCheck = await requireAdminFromRequest(request);
+  if (!adminCheck.ok) return adminCheck.response;
+
   const { id } = await context.params;
   try {
     await dbConnect();

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Eye, EyeOff } from "lucide-react";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { DataTable } from "@/components/shared/DataTable";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { toast } from "sonner";
+import { adminSessionAuthHeaders } from "@/lib/auth/admin-session-client";
 
 const credentialsSchema = z.object({
   name: z.string().min(1, "Name is required"),
@@ -64,7 +65,62 @@ export default function AdminCredentialsPage() {
   const [rows, setRows] = useState<CredentialRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeRole, setActiveRole] = useState<CredentialRole>("student");
+  const [visiblePasswords, setVisiblePasswords] = useState<Record<string, boolean>>({});
   const [editing, setEditing] = useState<CredentialRow | null>(null);
+  const [editMode, setEditMode] = useState<'basic' | 'email' | 'password' | 'emailAndPassword'>('basic');
+
+  const credentialsSchema = z.object({
+    name: z.string().min(1, "Name is required"),
+    mobileNumber: z.string().min(1, "Mobile number is required"),
+    email: z.string().email("Invalid email address"),
+    password: z.string().optional(),
+    confirmPassword: z.string().optional(),
+    accountStatus: z.enum(["Active", "Inactive"]).default("Active"),
+  }).superRefine((data, ctx) => {
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+
+    if (!editing && !data.password) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['password'],
+        message: 'Password is required',
+      });
+    }
+
+    if (data.password || data.confirmPassword) {
+      if (!data.password) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['password'],
+          message: 'Password is required',
+        });
+      }
+
+      if (!data.confirmPassword) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['confirmPassword'],
+          message: 'Confirm your password',
+        });
+      }
+
+      if (data.password && !passwordRegex.test(data.password)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['password'],
+          message: 'Password must contain uppercase, lowercase, number, and special character',
+        });
+      }
+
+      if (data.password && data.confirmPassword && data.password !== data.confirmPassword) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['confirmPassword'],
+          message: 'Passwords do not match',
+        });
+      }
+    }
+  });
 
   const credentialsForm = useForm<CredentialForm>({
     resolver: zodResolver(credentialsSchema),
@@ -81,7 +137,12 @@ export default function AdminCredentialsPage() {
   const fetchCredentials = async (role: CredentialRole) => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/credentials?role=${role}`);
+      const response = await fetch(`/api/credentials?role=${role}`, {
+        credentials: 'include',
+        headers: {
+          ...adminSessionAuthHeaders(),
+        },
+      });
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}));
         throw new Error((errBody as { error?: string }).error || `Server error (${response.status})`);
@@ -114,11 +175,13 @@ export default function AdminCredentialsPage() {
 
   const openAddModal = () => {
     clearForm();
+    setEditMode('basic');
     setOpen(true);
   };
 
   const openEditModal = (row: CredentialRow) => {
     setEditing(row);
+    setEditMode('basic');
     credentialsForm.reset({
       name: row.name,
       mobileNumber: row.mobileNumber ?? "",
@@ -146,12 +209,17 @@ export default function AdminCredentialsPage() {
         payload.confirmPassword = data.confirmPassword;
       }
 
-      const url = editing ? `/api/credentials/${editing.id}` : '/api/credentials';
-      const method = editing ? 'PUT' : 'POST';
+      if (editing) {
+        payload.id = editing.id;
+      }
+
+      const url = editing ? '/api/admin/update-credentials' : '/api/credentials';
+      const method = editing ? 'POST' : 'POST';
 
       const response = await fetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...adminSessionAuthHeaders() },
         body: JSON.stringify(payload),
       });
 
@@ -198,7 +266,11 @@ export default function AdminCredentialsPage() {
     }
 
     try {
-      const response = await fetch(`/api/credentials/${id}`, { method: 'DELETE' });
+      const response = await fetch(`/api/credentials/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+        headers: { ...adminSessionAuthHeaders() },
+      });
       const result = await response.json();
       if (!response.ok) {
         toast.error(result.error || 'Failed to delete credential');
@@ -213,9 +285,13 @@ export default function AdminCredentialsPage() {
     }
   };
 
+  const isEdit = Boolean(editing);
   const modalTitle = editing ? `Edit ${roleDisplay[activeRole]} Credential` : `Add ${roleDisplay[activeRole]} Credential`;
   const actionButtonLabel = buttonLabels[activeRole];
   const emptyStateTitle = `No ${roleLabels[activeRole].toLowerCase()} credentials yet.`;
+
+  const showEmailField = !isEdit || editMode !== 'password';
+  const showPasswordFields = !isEdit || editMode === 'password' || editMode === 'emailAndPassword';
 
   const tableRows = useMemo(() => rows.map(row => ({
     id: row.id,
@@ -265,7 +341,25 @@ export default function AdminCredentialsPage() {
             columns={[
               { key: 'name', header: 'Name' },
               { key: 'email', header: 'Email' },
-              { key: 'password', header: 'Password', render: row => row.password ?? 'Not stored' },
+              { key: 'password', header: 'Password', render: row => {
+                const visible = Boolean(visiblePasswords[row.id]);
+                const display = row.password ? (visible ? row.password : '••••••••') : 'Not stored';
+                return (
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm truncate max-w-[180px]">{display}</span>
+                    {row.password && (
+                      <button
+                        type="button"
+                        aria-label={visible ? 'Hide password' : 'Show password'}
+                        className="p-1 rounded hover:bg-muted"
+                        onClick={() => setVisiblePasswords(prev => ({ ...prev, [row.id]: !prev[row.id] }))}
+                      >
+                        {visible ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    )}
+                  </div>
+                );
+              } },
               { key: 'mobileNumber', header: 'Mobile' },
               { key: 'role', header: 'Role' },
               { key: 'accountStatus', header: 'Status', render: row => (
@@ -297,6 +391,22 @@ export default function AdminCredentialsPage() {
             <DialogTitle>{modalTitle}</DialogTitle>
           </DialogHeader>
           <form className="grid gap-4 mt-4" onSubmit={credentialsForm.handleSubmit(onSubmit)}>
+            {isEdit && (
+              <div className="grid gap-2">
+                <Label htmlFor="editMode">Update mode</Label>
+                <Select value={editMode} onValueChange={value => setEditMode(value as 'basic' | 'email' | 'password' | 'emailAndPassword')}>
+                  <SelectTrigger id="editMode"><SelectValue placeholder="Select update mode" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="basic">Update basic details only</SelectItem>
+                    <SelectItem value="email">Change email only</SelectItem>
+                    <SelectItem value="password">Change password only</SelectItem>
+                    <SelectItem value="emailAndPassword">Change email and password</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-sm text-muted-foreground">Choose what should be updated for this credential.</p>
+              </div>
+            )}
+
             <div className="grid gap-2">
               <Label htmlFor="name">Full Name</Label>
               <Input id="name" {...credentialsForm.register('name')} />
@@ -304,13 +414,7 @@ export default function AdminCredentialsPage() {
                 <p className="text-xs text-red-500">{credentialsForm.formState.errors.name.message}</p>
               )}
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" {...credentialsForm.register('email')} />
-              {credentialsForm.formState.errors.email && (
-                <p className="text-xs text-red-500">{credentialsForm.formState.errors.email.message}</p>
-              )}
-            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="mobileNumber">Mobile Number</Label>
               <Input id="mobileNumber" {...credentialsForm.register('mobileNumber')} />
@@ -318,20 +422,53 @@ export default function AdminCredentialsPage() {
                 <p className="text-xs text-red-500">{credentialsForm.formState.errors.mobileNumber.message}</p>
               )}
             </div>
-            <div className="grid gap-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" {...credentialsForm.register('password')} />
-              {credentialsForm.formState.errors.password && (
-                <p className="text-xs text-red-500">{credentialsForm.formState.errors.password.message}</p>
-              )}
-            </div>
-            <div className="grid gap-2">
-              <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input id="confirmPassword" type="password" {...credentialsForm.register('confirmPassword')} />
-              {credentialsForm.formState.errors.confirmPassword && (
-                <p className="text-xs text-red-500">{credentialsForm.formState.errors.confirmPassword.message}</p>
-              )}
-            </div>
+
+            {showEmailField ? (
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  disabled={isEdit && editMode !== 'email' && editMode !== 'emailAndPassword'}
+                  {...credentialsForm.register('email')}
+                />
+                {credentialsForm.formState.errors.email && (
+                  <p className="text-xs text-red-500">{credentialsForm.formState.errors.email.message}</p>
+                )}
+                {isEdit && editMode !== 'email' && editMode !== 'emailAndPassword' && (
+                  <p className="text-xs text-muted-foreground">Email is read-only unless you select a mode that changes it.</p>
+                )}
+              </div>
+            ) : (
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input id="email" type="email" disabled {...credentialsForm.register('email')} />
+                <p className="text-xs text-muted-foreground">Email is read-only when changing password only.</p>
+              </div>
+            )}
+
+            {showPasswordFields && (
+              <>
+                <div className="grid gap-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input id="password" type="password" {...credentialsForm.register('password')} />
+                  {credentialsForm.formState.errors.password && (
+                    <p className="text-xs text-red-500">{credentialsForm.formState.errors.password.message}</p>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="confirmPassword">Confirm Password</Label>
+                  <Input id="confirmPassword" type="password" {...credentialsForm.register('confirmPassword')} />
+                  {credentialsForm.formState.errors.confirmPassword && (
+                    <p className="text-xs text-red-500">{credentialsForm.formState.errors.confirmPassword.message}</p>
+                  )}
+                </div>
+                {isEdit && (
+                  <p className="text-sm text-muted-foreground">Leave password blank to keep the existing password.</p>
+                )}
+              </>
+            )}
+
             <div className="grid gap-2">
               <Label htmlFor="accountStatus">Status</Label>
               <Select value={credentialsForm.watch('accountStatus')} onValueChange={value => credentialsForm.setValue('accountStatus', value as "Active" | "Inactive") }>
@@ -346,7 +483,7 @@ export default function AdminCredentialsPage() {
               <Button type="button" variant="outline" onClick={() => { setOpen(false); clearForm(); }}>
                 Cancel
               </Button>
-              <Button type="submit">Save Credential</Button>
+              <Button type="submit">{editing ? 'Save changes' : 'Create credential'}</Button>
             </div>
           </form>
         </DialogContent>

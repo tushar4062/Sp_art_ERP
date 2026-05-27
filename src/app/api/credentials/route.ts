@@ -5,6 +5,7 @@ import Credential from '@/lib/models/Credentials';
 import Teacher from '@/lib/models/Teacher';
 import SeniorTeacher from '@/lib/models/SeniorTeacher';
 import Student from '@/lib/models/Student';
+import { requireAdminFromRequest } from '@/lib/auth/require-admin';
 
 import { syncStudentPortalPassword } from '@/lib/student-portal';
 
@@ -40,6 +41,9 @@ async function getUniqueBadgeId(role: 'teacher' | 'senior_teacher' | 'student') 
 }
 
 export async function GET(request: NextRequest) {
+  const adminCheck = await requireAdminFromRequest(request);
+  if (!adminCheck.ok) return adminCheck.response;
+
   try {
     await dbConnect();
     const url = new URL(request.url);
@@ -75,6 +79,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const adminCheck = await requireAdminFromRequest(request);
+  if (!adminCheck.ok) return adminCheck.response;
+
   try {
     await dbConnect();
 

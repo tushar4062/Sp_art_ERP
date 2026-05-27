@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CLASSES, makeAttendance } from "@/data/mockData";
 import { useStore, actions } from "@/store/dataStore";
 import { toast } from "sonner";
+import { adminSessionAuthHeaders } from "@/lib/auth/admin-session-client";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -154,7 +155,10 @@ export default function Students() {
 
     setLoadingCredentials(prev => ({ ...prev, [studentId]: true }));
     try {
-      const response = await fetch(`/api/student-credentials/by-student?studentId=${studentId}`);
+      const response = await fetch(`/api/student-credentials/by-student?studentId=${studentId}`, {
+        credentials: 'include',
+        headers: { ...adminSessionAuthHeaders() },
+      });
       const data = await response.json();
       setStudentCredentials(prev => ({ ...prev, [studentId]: data }));
     } catch (error) {
@@ -181,7 +185,10 @@ export default function Students() {
     const fetchAllCredentials = async () => {
       setLoadingAllCredentials(true);
       try {
-        const response = await fetch('/api/student-credentials');
+        const response = await fetch('/api/student-credentials', {
+          credentials: 'include',
+          headers: { ...adminSessionAuthHeaders() },
+        });
         const result = await response.json();
         setAllCredentials(result.credentials ?? []);
       } catch (error) {
@@ -238,7 +245,8 @@ export default function Students() {
     try {
       const response = await fetch('/api/student-credentials', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json', ...adminSessionAuthHeaders() },
         body: JSON.stringify({
           studentId: selectedStudentForCredentials.id,
           ...data,
