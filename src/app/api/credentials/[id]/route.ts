@@ -9,6 +9,9 @@ import SeniorTeacher from '@/lib/models/SeniorTeacher';
 import { normalizeEmail } from '@/lib/auth/normalizeEmail';
 import { findCredentialByEmail } from '@/lib/auth/findCredential';
 import { requireAdminFromRequest } from '@/lib/auth/require-admin';
+import { serverAdminCredentials } from '@/lib/auth/admin-session';
+import { sendCredentialUpdateEmail } from '@/lib/sendEmail';
+import CredentialAudit from '@/lib/models/CredentialAudit';
 
 export const runtime = 'nodejs';
 const roles = ['student', 'teacher', 'senior_teacher'] as const;
@@ -165,8 +168,59 @@ export async function updateCredentialById(id: string, body: UpdateCredentialPay
       }
     }
 
+    // Prepare notification
+    const emailChanged = Boolean(updateData.email && updateData.email !== originalEmail);
+    const passwordChanged = Boolean(updateData.password);
+    const recipient = (updateData.email as string) || credential.email;
+    const performedBy = serverAdminCredentials().email;
+    const notificationResult: { sent: boolean; error?: string } = { sent: false };
+
+    try {
+      await sendCredentialUpdateEmail({
+        to: recipient,
+        name: (updateData.name as string) || credential.name || 'User',
+        updatedEmail: emailChanged ? (updateData.email as string) : undefined,
+        updatedPassword: passwordChanged ? (password as string) : undefined,
+        loginUrl: process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000/login',
+        academyName: process.env.ACADEMY_NAME,
+        changedFields: { email: emailChanged, password: passwordChanged },
+        performedAt: new Date(),
+        supportEmail: process.env.SUPPORT_EMAIL,
+      });
+      notificationResult.sent = true;
+    } catch (emailErr: unknown) {
+      notificationResult.sent = false;
+      let errMsg = '';
+      if (emailErr instanceof Error) errMsg = emailErr.message;
+      else if (typeof emailErr === 'string') errMsg = emailErr;
+      else {
+        try {
+          errMsg = JSON.stringify(emailErr);
+        } catch {
+          errMsg = String(emailErr);
+        }
+      }
+      notificationResult.error = errMsg;
+      console.error('Error sending credential update email:', emailErr);
+    }
+
+    // Record audit
+    try {
+      await CredentialAudit.create({
+        credentialId: credential._id,
+        targetEmail: recipient,
+        changes: updateData,
+        performedBy,
+        performedAt: new Date(),
+        notification: { to: recipient, sent: notificationResult.sent, error: notificationResult.error },
+      });
+    } catch (auditErr) {
+      console.error('Failed to write credential audit log:', auditErr);
+    }
+
     return NextResponse.json({
       message: 'Credential updated successfully',
+      notification: notificationResult,
       credentials: {
         id: credential._id.toString(),
         name: credential.name,
