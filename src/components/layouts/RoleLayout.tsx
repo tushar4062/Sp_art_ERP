@@ -135,7 +135,7 @@ export function RoleLayout({ navItems, role, children }: { navItems: NavItem[]; 
       {open && <div className="fixed inset-0 z-30 bg-foreground/40 lg:hidden" onClick={() => setOpen(false)} />}
 
       {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
         <header className="sticky top-0 z-20 bg-background/85 backdrop-blur border-b border-border">
           <div className="flex items-center justify-between gap-3 px-4 sm:px-6 h-14">
             <button className="lg:hidden p-2 rounded-lg hover:bg-muted" onClick={() => setOpen(true)}>
