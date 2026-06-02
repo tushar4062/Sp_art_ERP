@@ -58,10 +58,10 @@ export function CourseCard({
     setEnrolled(isEnrolled);
   }, [isEnrolled]);
 
-  const originalPrice = Math.max(0, Number(discountFees ?? totalFees ?? 0));
+  const originalPrice = Math.max(0, Number(totalFees ?? 0));
+  const discountedPrice = Math.max(0, Number(discountFees ?? originalPrice));
   const percentage = Math.max(0, Number(discountPercentage ?? 0));
-  const finalPrice = Math.round(Math.max(0, originalPrice - (originalPrice * percentage) / 100));
-  const showDiscount = percentage > 0 && finalPrice < originalPrice;
+  const showDiscount = discountedPrice < originalPrice;
 
   const handleEnroll = async () => {
     if (enrolled) return;
@@ -70,7 +70,7 @@ export function CourseCard({
       return;
     }
 
-    if (!Number.isFinite(finalPrice) || finalPrice <= 0) {
+    if (!Number.isFinite(discountedPrice) || discountedPrice <= 0) {
       toast({ title: 'Payment Error', description: 'Invalid course amount. Please contact support.', variant: 'destructive' });
       return;
     }
@@ -82,7 +82,7 @@ export function CourseCard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include', // Include cookies for authentication
-        body: JSON.stringify({ amount: finalPrice, courseId }),
+        body: JSON.stringify({ amount: discountedPrice, courseId }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -302,7 +302,7 @@ export function CourseCard({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Payable Amount</p>
-              <p className="mt-1 text-xl font-semibold text-slate-950">₹{finalPrice.toLocaleString('en-IN')}</p>
+              <p className="mt-1 text-xl font-semibold text-slate-950">₹{discountedPrice.toLocaleString('en-IN')}</p>
             </div>
             {showDiscount ? (
               <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">

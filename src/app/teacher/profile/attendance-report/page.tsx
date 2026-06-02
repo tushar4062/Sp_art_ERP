@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +22,7 @@ export default function TeacherAttendanceReportPage() {
   const [records, setRecords] = useState<Rec[]>([]);
   const [summary, setSummary] = useState<{ present: number; absent: number; total: number; percentage: number } | null>(null);
 
-  const fetchReport = async (m: string) => {
+  const fetchReport = useCallback(async (m: string) => {
     setLoading(true);
     try {
       const res = await fetch(`/api/teacher/attendance/report?month=${encodeURIComponent(m)}`, {
@@ -47,12 +47,12 @@ export default function TeacherAttendanceReportPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [router]);
 
   useEffect(() => {
     if (!sessionOk || checking) return;
     void fetchReport(month);
-  }, [month, sessionOk, checking]);
+  }, [fetchReport, month, sessionOk, checking]);
 
   const daysInMonth = useMemo(() => {
     const [y, mo] = month.split("-").map(Number);

@@ -30,6 +30,7 @@ const adminNav: NavItem[] = [
   { to: "/admin/inventory", label: "Inventory", icon: Boxes },
   { to: "/admin/batches", label: "Batches", icon: Package, end: false },
   { to: "/admin/billing", label: "Billing", icon: CreditCard },
+  { to: "/admin/offline-payments", label: "Offline Payments", icon: Wallet },
   { to: "/admin/certificates", label: "Certificates", icon: Award },
   { to: "/admin/notifications", label: "Notifications", icon: Bell },
   { to: "/admin/feedback", label: "Parent Feedback", icon: MessageSquareHeart },
