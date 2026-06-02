@@ -7,6 +7,7 @@ import {
   buildSeniorTeacherStudentsFilter,
 } from "@/lib/auth/senior-teacher-student-scope";
 import { toStudentJson } from "@/lib/serializers/studentSerialize";
+import Credentials, { type CredentialDocument } from '@/lib/models/Credentials';
 
 export const runtime = "nodejs";
 
@@ -59,10 +60,24 @@ export async function GET(request: NextRequest) {
 
     const totalPages = Math.max(1, Math.ceil(total / STUDENT_PAGE_SIZE));
 
+    // Map DB rows to JSON serializable objects
+    const studentJsons = rows.map(doc => toStudentJson(doc as StudentDocument));
+
+    // Fetch credential accountStatus for these students by email (case-insensitive via lowercasing)
+    const emails = studentJsons.map(s => (s.email || '').toLowerCase()).filter(Boolean);
+    if (emails.length) {
+      const creds = await Credentials.find({ email: { $in: emails }, role: 'student' }).lean();
+      const credMap = new Map<string, string>(creds.map((c: CredentialDocument) => [(c.email || '').toLowerCase(), c.accountStatus]));
+      studentJsons.forEach(s => {
+        const acct = credMap.get((s.email || '').toLowerCase());
+        if (acct) s.status = acct as 'Active' | 'Inactive';
+      });
+    }
+
     return NextResponse.json({
       success: true,
       data: {
-        students: rows.map(doc => toStudentJson(doc as StudentDocument)),
+        students: studentJsons,
         pagination: { page, limit: STUDENT_PAGE_SIZE, total, totalPages },
         filterOptions: {
           classes: (classOptions as string[]).filter(Boolean).sort(),
