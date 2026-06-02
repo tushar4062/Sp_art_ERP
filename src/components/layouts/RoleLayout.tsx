@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 export type NavItem = { to: string; label: string; icon: LucideIcon; end?: boolean };
+export type NavSection = { title: string; items: NavItem[] };
 
 const ROLE_THEME: Record<Role, { hsl: string; gradient: string }> = {
   "super-admin":    { hsl: "258 52% 32%", gradient: "from-secondary to-secondary/80" },
@@ -27,12 +28,47 @@ const ROLE_THEME: Record<Role, { hsl: string; gradient: string }> = {
   "student":        { hsl: "214 84% 50%", gradient: "from-info to-secondary/80" },
 };
 
-export function RoleLayout({ navItems, role, children }: { navItems: NavItem[]; role: Role; children: ReactNode }) {
+export function RoleLayout({ navItems, role, children }: { navItems: Array<NavItem | NavSection>; role: Role; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const { user, logout } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const theme = ROLE_THEME[role];
+
+  const isSection = (item: NavItem | NavSection): item is NavSection => {
+    return "items" in item;
+  };
+
+  const renderNavItem = (item: NavItem) => {
+    const isActive = pathname === item.to || (item.end === false && pathname.startsWith(item.to));
+
+    return (
+      <Link
+        key={item.to}
+        href={item.to}
+        onClick={() => setOpen(false)}
+        className={cn(
+          "group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition duration-200 ease-in-out relative overflow-hidden",
+          isActive
+            ? "bg-muted text-foreground shadow-sm"
+            : "text-muted-foreground hover:bg-muted/70 hover:text-foreground",
+        )}
+      >
+        {isActive && (
+          <span
+            className="absolute left-0 top-2 bottom-2 w-0.5 rounded-r"
+            style={{ background: `hsl(${theme.hsl})` }}
+          />
+        )}
+        <item.icon
+          className="w-4 h-4 shrink-0"
+          strokeWidth={2}
+          style={isActive ? { color: `hsl(${theme.hsl})` } : undefined}
+        />
+        <span className="truncate">{item.label}</span>
+      </Link>
+    );
+  };
 
   const handleLogout = async () => {
     if (role === "student") {
@@ -90,38 +126,28 @@ export function RoleLayout({ navItems, role, children }: { navItems: NavItem[]; 
             <div className="font-display font-semibold text-sm text-foreground">{ROLE_LABELS[role]}</div>
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5 scrollbar-thin">
-          {navItems.map(item => {
-            const isActive = pathname === item.to || (item.end === false && pathname.startsWith(item.to));
-            return (
-              <Link
-                key={item.to}
-                href={item.to}
-                onClick={() => setOpen(false)}
-                className={cn(
-                  "group flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors relative",
-                  isActive
-                    ? "bg-muted text-foreground"
-                    : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
-                )}
-              >
-                {isActive && (
-                  <span
-                    className="absolute left-0 top-1.5 bottom-1.5 w-0.5 rounded-r"
-                    style={{ background: `hsl(${theme.hsl})` }}
-                  />
-                )}
-                <item.icon
-                  className="w-4 h-4 shrink-0"
-                  strokeWidth={2}
-                  style={isActive ? { color: `hsl(${theme.hsl})` } : undefined}
-                />
-                <span>{item.label}</span>
-              </Link>
-            );
+        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4 scroll-smooth scrollbar-thin scrollbar-thumb-muted/40 scrollbar-track-transparent">
+          {navItems.map((item, index) => {
+            if (isSection(item)) {
+              return (
+                <div key={item.title} className="space-y-2">
+                  <div className="px-3 text-[10px] uppercase tracking-[0.26em] text-muted-foreground/80 font-semibold">
+                    {item.title}
+                  </div>
+                  <div className="space-y-1">
+                    {item.items.map(renderNavItem)}
+                  </div>
+                </div>
+              );
+            }
+
+            return renderNavItem(item);
           })}
         </nav>
         <div className="p-3 border-t border-sidebar-border">
+          <div className="mb-2 px-2 text-[10px] uppercase tracking-[0.26em] text-muted-foreground/80">
+            System
+          </div>
           <Button
             variant="ghost"
             className="w-full justify-start gap-3 rounded-md text-muted-foreground hover:bg-destructive-soft hover:text-destructive font-medium"
