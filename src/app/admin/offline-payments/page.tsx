@@ -283,17 +283,6 @@ export default function AdminOfflinePaymentsPage() {
       { key: "payment_method", header: "Method", render: (row: OfflinePaymentRow) => row.payment_method.replace("_", " ") },
       { key: "payment_status", header: "Status", render: (row: OfflinePaymentRow) => <StatusBadge status={row.payment_status} overdue={row.is_overdue} /> },
       { key: "created_at", header: "Created", render: (row: OfflinePaymentRow) => row.created_at ? format(new Date(row.created_at), "dd MMM yyyy") : "—" },
-      { key: "actions", header: "Actions", render: (row: OfflinePaymentRow) => (
-          row.payment_status === "pending"
-            ? (
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" onClick={() => verifyPayment(row.payment_id)}>Verify</Button>
-                <Button size="sm" variant="outline" onClick={() => rejectPayment(row.payment_id)}>Reject</Button>
-              </div>
-            )
-            : <span className="text-sm text-muted-foreground">No actions</span>
-        ),
-      },
     ],
     [rejectPayment, verifyPayment],
   );
