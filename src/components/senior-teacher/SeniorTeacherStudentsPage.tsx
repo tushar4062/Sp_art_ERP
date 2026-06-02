@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight, Eye, Pencil, Save, Search } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Avatar } from "@/components/shared/Avatar";
 import { Button } from "@/components/ui/button";
@@ -128,6 +129,31 @@ export function SeniorTeacherStudentsPage() {
   const [sheetLoading, setSheetLoading] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [courseDialogOpen, setCourseDialogOpen] = useState(false);
+  const [coursesLoading, setCoursesLoading] = useState(false);
+  type EnrolledCourse = {
+    _id: string;
+    courseId?: string;
+    course?: { _id: string; courseTitle?: string; courseCode?: string };
+    enrollmentDate?: string;
+    status?: string;
+    completionPercentage?: number;
+    amount?: number;
+    paymentStatus?: string;
+  };
+  const [enrolledCourses, setEnrolledCourses] = useState<EnrolledCourse[]>([]);
+  const [courseDialogStudent, setCourseDialogStudent] = useState<SeniorTeacherStudentItem | null>(null);
+
+  // Ensure body overflow is restored if any dialog leaves it hidden
+  useEffect(() => {
+    if (!courseDialogOpen && typeof document !== 'undefined') {
+      try {
+        document.body.style.overflow = '';
+      } catch (e) {
+        // noop
+      }
+    }
+  }, [courseDialogOpen]);
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
@@ -357,12 +383,6 @@ export function SeniorTeacherStudentsPage() {
                       Course
                     </TableHead>
                     <TableHead className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Class
-                    </TableHead>
-                    <TableHead className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-600">
-                      Attendance
-                    </TableHead>
-                    <TableHead className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-600">
                       Status
                     </TableHead>
                     <TableHead className="px-6 py-4 text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -383,9 +403,35 @@ export function SeniorTeacherStudentsPage() {
                         <div className="font-semibold text-slate-900">{student.fullName}</div>
                       </TableCell>
                       <TableCell className="px-6 py-5 text-slate-700">{student.email}</TableCell>
-                      <TableCell className="px-6 py-5 text-slate-700">{student.course}</TableCell>
-                      <TableCell className="px-6 py-5 text-slate-700">{student.className}</TableCell>
-                      <TableCell className="px-6 py-5 text-slate-700">{student.attendancePercentage}%</TableCell>
+                      <TableCell className="px-6 py-5 text-slate-700">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-3 text-xs"
+                          onClick={async () => {
+                            setCourseDialogStudent(student);
+                            setCourseDialogOpen(true);
+                            setCoursesLoading(true);
+                            try {
+                                const res = await fetch(`/api/senior-teacher/students/${student.id}/courses`, { credentials: 'include' });
+                                const json = await res.json();
+                                if (!res.ok) {
+                                  console.error('Enrollment API response error:', json);
+                                  throw new Error(json?.error || 'Failed to load courses');
+                                }
+                                setEnrolledCourses(json.data?.enrollments || []);
+                            } catch (e) {
+                              console.error(e);
+                              toast.error('Failed to load enrolled courses');
+                              setEnrolledCourses([]);
+                            } finally {
+                              setCoursesLoading(false);
+                            }
+                          }}
+                        >
+                          View course
+                        </Button>
+                      </TableCell>
                       <TableCell className="px-6 py-5">
                         <StatusBadge status={student.status} />
                       </TableCell>
@@ -432,15 +478,30 @@ export function SeniorTeacherStudentsPage() {
                   <div className="grid grid-cols-2 gap-2 text-sm text-slate-700">
                     <div>
                       <span className="text-muted-foreground text-xs">Course</span>
-                      <p className="font-medium">{student.course}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground text-xs">Class</span>
-                      <p className="font-medium">{student.className}</p>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground text-xs">Attendance</span>
-                      <p className="font-medium">{student.attendancePercentage}%</p>
+                      <p className="font-medium">
+                        <Button variant="ghost" size="sm" onClick={async () => {
+                          setCourseDialogStudent(student);
+                          setCourseDialogOpen(true);
+                          setCoursesLoading(true);
+                          try {
+                            const res = await fetch(`/api/senior-teacher/students/${student.id}/courses`, { credentials: 'include' });
+                            const json = await res.json();
+                            if (!res.ok) {
+                              console.error('Enrollment API response error:', json);
+                              throw new Error(json?.error || 'Failed to load courses');
+                            }
+                            setEnrolledCourses(json.data?.enrollments || []);
+                          } catch (e) {
+                            console.error(e);
+                            toast.error('Failed to load enrolled courses');
+                            setEnrolledCourses([]);
+                          } finally {
+                            setCoursesLoading(false);
+                          }
+                        }}>
+                          View course
+                        </Button>
+                      </p>
                     </div>
                     <div>
                       <span className="text-muted-foreground text-xs">Joined</span>
@@ -624,6 +685,28 @@ export function SeniorTeacherStudentsPage() {
           )}
         </SheetContent>
       </Sheet>
+      <Dialog open={courseDialogOpen} onOpenChange={(open) => !open && setCourseDialogOpen(false)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Courses — {courseDialogStudent?.fullName}</DialogTitle>
+          </DialogHeader>
+          {coursesLoading ? (
+            <div className="p-4">Loading courses…</div>
+          ) : enrolledCourses.length === 0 ? (
+            <div className="p-4 text-sm text-muted-foreground">No enrolled courses found for this student.</div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {enrolledCourses.map((en) => (
+                <div key={en._id || en.courseId} className="p-3 border rounded">
+                  <div className="font-semibold">{en.course?.courseTitle ?? 'Untitled course'}</div>
+                  <div className="text-xs text-muted-foreground">Code: {en.course?.courseCode ?? '—'}</div>
+                  <div className="text-xs text-muted-foreground">Status: {en.status} • Enrolled: {en.enrollmentDate ? new Date(en.enrollmentDate).toLocaleDateString() : '—'}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
