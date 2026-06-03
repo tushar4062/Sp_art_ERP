@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireSeniorTeacherFromRequest(request);
-    if (!auth.ok) return auth.response;
+    if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     await dbConnect();
     const { searchParams } = new URL(request.url);
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireSeniorTeacherFromRequest(request);
-    if (!auth.ok) return auth.response;
+    if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     const body = await request.json();
     const parsed = staffAttendanceMarkSchema.safeParse(body);

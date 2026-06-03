@@ -25,7 +25,7 @@ export async function GET(
 ) {
   try {
     const auth = await requireAdminFromRequest(request);
-    if (!auth.ok) return auth.response;
+    if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     const { id } = await context.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -52,7 +52,7 @@ export async function PATCH(
 ) {
   try {
     const auth = await requireAdminFromRequest(request);
-    if (!auth.ok) return auth.response;
+    if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     const { id } = await context.params;
     if (!mongoose.Types.ObjectId.isValid(id)) {

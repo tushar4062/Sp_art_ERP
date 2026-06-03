@@ -13,7 +13,7 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireSeniorTeacherFromRequest(request);
-    if (!auth.ok) return auth.response;
+    if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     await dbConnect();
 

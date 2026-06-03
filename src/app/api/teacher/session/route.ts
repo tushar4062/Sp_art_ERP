@@ -9,7 +9,7 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireTeacherFromRequest(request);
-    if (!auth.ok) return auth.response;
+    if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     await dbConnect();
     const teacher = await Teacher.findById(auth.teacher.id).select("fullName email");

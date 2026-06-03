@@ -23,7 +23,7 @@ const LEAVE_TYPES: LeaveType[] = ["Casual", "Sick", "Personal"];
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireSeniorTeacherFromRequest(request);
-    if (!auth.ok) return auth.response;
+    if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     await dbConnect();
     const [leaves, balance] = await Promise.all([
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const auth = await requireSeniorTeacherFromRequest(request);
-    if (!auth.ok) return auth.response;
+    if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     const body = await request.json();
     const leaveType = (body.leaveType || body.type || "").trim() as LeaveType;

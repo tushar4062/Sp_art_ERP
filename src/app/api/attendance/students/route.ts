@@ -15,7 +15,7 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireBatchRead(request);
-    if (!auth.ok) return auth.response;
+      if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     const { searchParams } = new URL(request.url);
     const batchId = (searchParams.get("batchId") || "").trim();

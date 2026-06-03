@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireBatchRead(request);
-    if (!auth.ok) return auth.response;
+       if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
     if (auth.access.kind === "teacher") {
       return NextResponse.json(
         {

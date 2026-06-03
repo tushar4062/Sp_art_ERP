@@ -63,7 +63,7 @@ export async function GET(request: NextRequest) {
     }
 
     const auth = await requireSeniorTeacherFromRequest(request);
-    if (!auth.ok) return auth.response;
+    if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     const seniorId = auth.seniorTeacher.id;
     await dbConnect();

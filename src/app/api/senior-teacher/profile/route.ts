@@ -60,7 +60,7 @@ function seniorToProfile(doc: SeniorTeacherDocument) {
 export async function GET(request: NextRequest) {
   try {
     const auth = await requireSeniorTeacherFromRequest(request);
-    if (!auth.ok) return auth.response;
+    if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     await dbConnect();
     const senior = await SeniorTeacher.findById(auth.seniorTeacher.id);
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const auth = await requireSeniorTeacherFromRequest(request);
-    if (!auth.ok) return auth.response;
+    if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     const body = await request.json();
     const parsed = updateSchema.safeParse(body);

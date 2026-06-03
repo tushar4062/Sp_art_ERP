@@ -11,7 +11,7 @@ export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ courseId?: string }> }) {
   const auth = await requireStudentFromRequest(request);
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
   const { courseId } = await params;
   if (!courseId || !mongoose.Types.ObjectId.isValid(courseId)) {

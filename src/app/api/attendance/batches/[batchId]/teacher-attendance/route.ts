@@ -16,8 +16,8 @@ type RouteContext = { params: Promise<{ batchId: string }> };
 
 export async function GET(request: NextRequest, context: RouteContext) {
   try {
-    const auth = await requireBatchRead(request);
-    if (!auth.ok) return auth.response;
+      const auth = await requireBatchRead(request);
+      if (!auth.ok) return (auth as { ok: false; response: import("next/server").NextResponse }).response;
 
     const { batchId } = await context.params;
     if (!mongoose.Types.ObjectId.isValid(batchId)) {
