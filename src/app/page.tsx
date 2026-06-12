@@ -15,7 +15,7 @@ export default function Home() {
     if (user) {
       router.push(roleHome(user.role));
     } else {
-      router.push("/login");
+      router.push("/student/login");
     }
   }, [user, hydrated, router]);
 

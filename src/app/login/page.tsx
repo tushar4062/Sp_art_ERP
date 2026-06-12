@@ -22,7 +22,6 @@ const ROLES: RoleOption[] = [
   { id: "admin",          title: "Admin",          desc: "Run the academy",         icon: Shield,        gradient: "from-primary to-accent",         demoEmail: ADMIN_EMAIL },
   { id: "senior-teacher", title: "Senior Teacher", desc: "Approvals & oversight",   icon: GraduationCap, gradient: "from-accent to-primary",          demoEmail: "rahul@littlebrushes.in" },
   { id: "teacher",        title: "Teacher",        desc: "Classes & attendance",    icon: Users,         gradient: "from-success to-info",            demoEmail: "sneha@littlebrushes.in" },
-  { id: "student",        title: "Student",        desc: "Classes, fees, certs",    icon: BookOpen,      gradient: "from-info to-secondary",          demoEmail: "aarav@kid.in" },
 ];
 
 export default function Login() {
@@ -39,23 +38,6 @@ export default function Login() {
 
     setSubmitting(true);
     try {
-      if (role === "student") {
-        const response = await fetch("/api/student/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ email: email.trim(), password }),
-        });
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data?.error || "Student login failed");
-        }
-        login("student", data.data.user.email, data.data.user.name);
-        toast.success(`Welcome, ${data.data.user.name}!`);
-        router.push("/student/dashboard");
-        return;
-      }
-
       if (role === "teacher" || role === "senior-teacher") {
         const response = await fetch("/api/login", {
           method: "POST",
@@ -157,13 +139,11 @@ export default function Login() {
           <div>
             <h2 className="font-display text-3xl font-bold text-secondary">Welcome back!</h2>
             <p className="text-muted-foreground mt-1">
-              {role === "student"
-                ? "Student login uses your email and password from admin credentials."
-                : "Teacher and Senior Teacher use database credentials. Admin uses env settings."}
+              Teacher and Senior Teacher use database credentials. Admin uses env settings.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-2 gap-2.5">
             {ROLES.map(r => (
               <button
                 key={r.id}
@@ -202,9 +182,7 @@ export default function Login() {
               <p className="text-[11px] text-muted-foreground">
                 {role === "admin"
                   ? "Admin login uses the env credentials you configured."
-                  : role === "student"
-                    ? "Use the password set when admin created your student account."
-                    : "Enter the password from your credential record."}
+                  : "Enter the password from your credential record."}
               </p>
             </div>
             <Button

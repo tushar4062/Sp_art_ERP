@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import {
   LayoutDashboard, CalendarDays, Star, ClipboardList, Wallet, Award, MessageSquareHeart, MessageSquare, User, BookOpen
 } from "lucide-react";
@@ -22,6 +23,12 @@ const studentNav: NavItem[] = [
 ];
 
 export default function StudentLayout({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+
+  if (pathname?.startsWith("/student/login")) {
+    return <>{children}</>;
+  }
+
   return (
     <RequireRole role="student">
       <RoleLayout navItems={studentNav} role="student">

@@ -255,7 +255,7 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" className="rounded-xl" asChild>
           <Link href={routes.list}>
@@ -265,7 +265,7 @@ export function BatchForm({ mode, batchId, initial }: { mode: "create" | "edit";
         <PageHeader title={mode === "create" ? "Create batch" : "Edit batch"} subtitle="Fill in schedule, roster, and teacher assignments." />
       </div>
 
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8 max-w-4xl">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm space-y-5">
           <h2 className="font-display font-semibold text-lg">Batch details</h2>
           <div className="grid gap-4 sm:grid-cols-2">
