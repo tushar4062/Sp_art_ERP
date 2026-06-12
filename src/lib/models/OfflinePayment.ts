@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 
 export type OfflinePaymentStatus = 'pending' | 'completed' | 'failed' | 'rejected';
 export type OfflinePaymentMethod = 'online' | 'offline';
-export type OfflinePaymentChannel = 'cash' | 'cheque' | 'bank_transfer';
+export type OfflinePaymentChannel = 'cash' | 'cheque' | 'bank_transfer' | 'upi';
 
 export interface OfflinePaymentDocument extends mongoose.Document {
   studentId: mongoose.Types.ObjectId;
@@ -30,7 +30,7 @@ const OfflinePaymentSchema = new mongoose.Schema<OfflinePaymentDocument>(
     courseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', required: true, index: true },
     amount: { type: Number, required: true },
     paymentMethod: { type: String, enum: ['online', 'offline'], required: true, default: 'offline' },
-    offlineMethod: { type: String, enum: ['cash', 'cheque', 'bank_transfer'], required: true },
+    offlineMethod: { type: String, enum: ['cash', 'cheque', 'bank_transfer', 'upi'], required: true },
     paymentStatus: {
       type: String,
       enum: ['pending', 'completed', 'failed', 'rejected'],

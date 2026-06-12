@@ -47,6 +47,7 @@ const paymentMethods = [
   { value: "cash", label: "Cash" },
   { value: "cheque", label: "Cheque" },
   { value: "bank_transfer", label: "Bank Transfer" },
+  { value: "upi", label: "UPI" },
 ];
 
 function StatusBadge({ status, overdue }: { status: string; overdue?: boolean }) {
@@ -167,8 +168,11 @@ export default function AdminOfflinePaymentsPage() {
   useEffect(() => {
     loadStudents();
     loadCourses();
+  }, [loadStudents, loadCourses]);
+
+  useEffect(() => {
     loadPayments();
-  }, [loadStudents, loadCourses, loadPayments]);
+  }, [loadPayments]);
 
   const refresh = async () => {
     await loadPayments();
@@ -283,6 +287,29 @@ export default function AdminOfflinePaymentsPage() {
       { key: "payment_method", header: "Method", render: (row: OfflinePaymentRow) => row.payment_method.replace("_", " ") },
       { key: "payment_status", header: "Status", render: (row: OfflinePaymentRow) => <StatusBadge status={row.payment_status} overdue={row.is_overdue} /> },
       { key: "created_at", header: "Created", render: (row: OfflinePaymentRow) => row.created_at ? format(new Date(row.created_at), "dd MMM yyyy") : "—" },
+      {
+        key: "actions",
+        header: "Actions",
+        render: (row: OfflinePaymentRow) => {
+          if (row.payment_status === "pending") {
+            return (
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="secondary" onClick={() => verifyPayment(row.payment_id)}>
+                  Verify
+                </Button>
+                <Button size="sm" variant="destructive" onClick={() => rejectPayment(row.payment_id)}>
+                  Reject
+                </Button>
+              </div>
+            );
+          }
+          return (
+            <span className="inline-flex items-center rounded-full border border-border/80 bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-600">
+              {row.payment_status === "verified" ? "Verified" : "Rejected"}
+            </span>
+          );
+        },
+      },
     ],
     [rejectPayment, verifyPayment],
   );
@@ -412,7 +439,6 @@ export default function AdminOfflinePaymentsPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
-            <Button variant="outline" className="h-12 rounded-2xl" onClick={loadPayments}>Apply</Button>
           </div>
         </div>
 

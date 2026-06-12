@@ -10,7 +10,7 @@ import { sendTransactionalEmail } from '@/lib/email/mailer';
 
 export const runtime = 'nodejs';
 
-const ALLOWED_OFFLINE_METHODS = ['cash', 'cheque', 'bank_transfer'] as const;
+const ALLOWED_OFFLINE_METHODS = ['cash', 'cheque', 'bank_transfer', 'upi'] as const;
 
 type OfflineChannel = (typeof ALLOWED_OFFLINE_METHODS)[number];
 
