@@ -3,6 +3,7 @@ import Razorpay from 'razorpay';
 import mongoose from 'mongoose';
 import dbConnect from '@/lib/mongodb';
 import { requireStudentFromRequest } from '@/lib/auth/require-student';
+import { assertRazorpayConfigured } from '@/lib/razorpay/config';
 
 export const runtime = 'nodejs';
 
@@ -68,14 +69,16 @@ export async function POST(request: NextRequest) {
 
     // Initialize Razorpay
     console.log(`\n→ Initializing Razorpay...`);
-    const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
-    const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
-
-    if (!razorpayKeyId || !razorpayKeySecret) {
-      console.error(`✗ Razorpay credentials missing`);
-      console.error(`  RAZORPAY_KEY_ID: ${razorpayKeyId ? 'SET' : 'MISSING'}`);
-      console.error(`  RAZORPAY_KEY_SECRET: ${razorpayKeySecret ? 'SET' : 'MISSING'}`);
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    let razorpayKeyId: string;
+    let razorpayKeySecret: string;
+    try {
+      ({ keyId: razorpayKeyId, keySecret: razorpayKeySecret } = assertRazorpayConfigured());
+    } catch {
+      console.error(`✗ Razorpay credentials missing in .env`);
+      return NextResponse.json(
+        { error: 'Payment gateway is not configured. Contact admin.' },
+        { status: 503 },
+      );
     }
 
     console.log(`✓ Razorpay credentials found`);
@@ -119,7 +122,7 @@ export async function POST(request: NextRequest) {
     console.log(`Duration: ${duration}ms`);
     console.log('');
 
-    return NextResponse.json({ order });
+    return NextResponse.json({ order, keyId: razorpayKeyId });
   } catch (error) {
     const duration = Date.now() - startTime;
     console.error('\n');

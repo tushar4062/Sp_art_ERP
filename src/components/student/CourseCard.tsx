@@ -92,6 +92,20 @@ export function CourseCard({
       }
 
       const order = data.order;
+      const razorpayKeyId =
+        data.keyId ||
+        process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
+        "";
+
+      if (!order?.id || !razorpayKeyId) {
+        toast({
+          title: "Payment Error",
+          description: "Payment gateway key is missing. Contact support.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
+      }
 
       // Load Razorpay script
       await new Promise<void>((resolve, reject) => {
@@ -105,7 +119,7 @@ export function CourseCard({
       });
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || '',
+        key: razorpayKeyId,
         amount: order.amount,
         currency: order.currency || 'INR',
         name: 'Little Brushes Art Academy',
