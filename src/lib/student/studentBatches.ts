@@ -9,6 +9,7 @@ export type StudentClassCard = {
   courseName: string;
   batchDays: string;
   teachers: string;
+  teacherName: string;
   branch: string;
 };
 
@@ -58,13 +59,15 @@ export function toStudentClassCard(doc: BatchDocument): StudentClassCard {
   const batchDays = doc.batchDay?.trim() || "";
   const batchTime = doc.batchTime?.trim() || doc.batchTiming?.trim() || "";
 
+  const teacherNames = formatTeacherNames(doc.teacherIds, Boolean(populated));
   return {
     id: doc._id.toString(),
     batchTime,
     batchName: doc.batchName,
     courseName: doc.courseName,
     batchDays,
-    teachers: formatTeacherNames(doc.teacherIds, Boolean(populated)),
+    teachers: teacherNames,
+    teacherName: teacherNames,
     branch: doc.branch?.trim() || "",
   };
 }

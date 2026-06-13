@@ -17,7 +17,6 @@ export async function PUT(request: Request, context: unknown) {
       fullName,
       email,
       badgeId,
-      className = 'Not Assigned',
       phone,
       photo,
       dob,
@@ -29,15 +28,12 @@ export async function PUT(request: Request, context: unknown) {
       occupation,
       fatherName,
       fatherMobile,
+      fatherOccupation,
       motherName,
       motherMobile,
+      motherOccupation,
       address,
-      currentCourse,
-      batchDays,
-      batchTime,
-      courseDurationMonths = 12,
-      artTeacher,
-      vanFacility = false,
+      howYouKnowUs,
       feeStatus = 'Pending',
     } = body;
 
@@ -64,33 +60,38 @@ export async function PUT(request: Request, context: unknown) {
     const oldName = student.fullName;
     const nameChanged = oldName !== fullName;
 
-    student.fullName = fullName;
-    student.email = email;
-    student.badgeId = badgeId;
-    student.className = className;
-    student.phone = phone;
-    student.photo = photo;
-    student.dob = dob;
-    student.age = age;
-    student.bloodGroup = bloodGroup;
-    student.gender = gender;
-    student.school = school;
-    student.college = college;
-    student.occupation = occupation;
-    student.fatherName = fatherName;
-    student.fatherMobile = fatherMobile;
-    student.motherName = motherName;
-    student.motherMobile = motherMobile;
-    student.address = address;
-    student.currentCourse = currentCourse;
-    student.batchDays = batchDays;
-    student.batchTime = batchTime;
-    student.courseDurationMonths = courseDurationMonths;
-    student.artTeacher = artTeacher;
-    student.vanFacility = vanFacility;
-    student.feeStatus = feeStatus;
+    const updatedStudent = await Student.findByIdAndUpdate(
+      params.id,
+      {
+        fullName,
+        email,
+        badgeId,
+        phone,
+        photo,
+        dob,
+        age,
+        bloodGroup,
+        gender,
+        school,
+        college,
+        occupation,
+        fatherName,
+        fatherMobile,
+        fatherOccupation,
+        motherName,
+        motherMobile,
+        motherOccupation,
+        address,
+        howYouKnowUs,
+        howYouComeToKnow: howYouKnowUs ?? student.howYouComeToKnow,
+        feeStatus,
+      },
+      { new: true, runValidators: true }
+    );
 
-    await student.save();
+    if (!updatedStudent) {
+      return NextResponse.json({ error: 'Student not found' }, { status: 404 });
+    }
 
     // Synchronize name change to Credentials collections
     if (nameChanged && email) {
@@ -117,34 +118,32 @@ export async function PUT(request: Request, context: unknown) {
     return NextResponse.json({
       message: 'Student updated successfully',
       student: {
-        id: student._id.toString(),
-        name: student.fullName,
-        email: student.email,
-        badgeId: student.badgeId,
-        class: student.className,
-        feeStatus: student.feeStatus,
-        phone: student.phone,
-        photo: student.photo,
-        parentName: student.parentName,
-        dob: student.dob,
-        age: student.age,
-        bloodGroup: student.bloodGroup,
-        gender: student.gender,
-        school: student.school,
-        college: student.college,
-        occupation: student.occupation,
-        fatherName: student.fatherName,
-        fatherMobile: student.fatherMobile,
-        motherName: student.motherName,
-        motherMobile: student.motherMobile,
-        address: student.address,
-        currentCourse: student.currentCourse,
-        batchDays: student.batchDays,
-        batchTime: student.batchTime,
-        courseDurationMonths: student.courseDurationMonths,
-        artTeacher: student.artTeacher,
-        vanFacility: student.vanFacility,
-        createdAt: student.createdAt,
+        id: updatedStudent._id.toString(),
+        name: updatedStudent.fullName,
+        email: updatedStudent.email,
+        badgeId: updatedStudent.badgeId,
+        class: updatedStudent.className,
+        feeStatus: updatedStudent.feeStatus,
+        phone: updatedStudent.phone,
+        photo: updatedStudent.photo,
+        parentName: updatedStudent.parentName,
+        dob: updatedStudent.dob,
+        age: updatedStudent.age,
+        bloodGroup: updatedStudent.bloodGroup,
+        gender: updatedStudent.gender,
+        school: updatedStudent.school,
+        college: updatedStudent.college,
+        occupation: updatedStudent.occupation,
+        fatherName: updatedStudent.fatherName,
+        fatherMobile: updatedStudent.fatherMobile,
+        fatherOccupation: updatedStudent.fatherOccupation,
+        motherName: updatedStudent.motherName,
+        motherMobile: updatedStudent.motherMobile,
+        motherOccupation: updatedStudent.motherOccupation,
+        address: updatedStudent.address,
+        howYouComeToKnow: updatedStudent.howYouComeToKnow,
+        howYouKnowUs: updatedStudent.howYouKnowUs,
+        createdAt: updatedStudent.createdAt,
       },
     });
   } catch (error) {

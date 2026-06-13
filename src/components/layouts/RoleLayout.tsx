@@ -105,7 +105,7 @@ export function RoleLayout({ navItems, role, children }: { navItems: Array<NavIt
   };
 
   return (
-    <div className="min-h-screen flex w-full bg-background">
+    <div className="h-screen flex w-full bg-background">
       {/* Sidebar */}
       <aside
         className={cn(
@@ -257,7 +257,7 @@ export function RoleLayout({ navItems, role, children }: { navItems: Array<NavIt
             </div>
           </div>
         </header>
-        <main className="flex-1 min-h-0 p-4 sm:p-6 max-w-full">
+        <main className="flex-1 min-h-0 p-4 sm:p-6 max-w-full overflow-y-auto">
           {children}
         </main>
       </div>

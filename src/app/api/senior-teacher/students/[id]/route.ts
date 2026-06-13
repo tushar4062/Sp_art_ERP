@@ -78,7 +78,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     if (data.phone !== undefined) student.phone = data.phone;
     if (data.gender !== undefined) student.gender = data.gender;
     if (data.age !== undefined) student.age = data.age;
-    if (data.course !== undefined) student.currentCourse = data.course;
+    // 'course' is managed via enrollments; do not set deprecated `currentCourse` on student
     if (data.className !== undefined) student.className = data.className;
     if (data.parentName !== undefined) student.parentName = data.parentName;
     if (data.parentContact !== undefined) student.fatherMobile = data.parentContact;

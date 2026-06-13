@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Home, MessageSquarePlus, Pencil, Save, UploadCloud, User } from "lucide-react";
+import { Home, MessageSquarePlus, Pencil, Save, User } from "lucide-react";
 import { StudentQueryRequestModal } from "@/components/student/StudentQueryRequestModal";
 import { QueryStatusBadge } from "@/components/student/QueryStatusBadge";
 import type { StudentQueryDto } from "@/lib/student/studentQueryAccess";
+import type { StudentClassCard } from "@/lib/student/studentBatches";
 import { PageHeader } from "@/components/shared/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -34,6 +35,7 @@ export type StudentProfileData = {
   courseName: string;
   teacherName: string;
   role: string;
+  classes: StudentClassCard[];
 };
 
 type FormState = {
@@ -184,7 +186,7 @@ export function StudentProfilePage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto">
+    <div className="space-y-6 max-w-4xl mx-auto min-h-screen pb-10">
       <PageHeader title="My Profile" subtitle="View and update your student details" />
 
       <div className="card-soft overflow-hidden">
@@ -197,29 +199,7 @@ export function StudentProfilePage() {
                 <User className="w-12 h-12 text-white/80" />
               )}
             </div>
-            {editing && (
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                className="absolute -bottom-2 left-1/2 -translate-x-1/2 rounded-full text-xs shadow-md"
-                disabled={uploading}
-                onClick={() => fileRef.current?.click()}
-              >
-                <UploadCloud className="w-3 h-3 mr-1" />
-                {uploading ? "…" : "Photo"}
-              </Button>
-            )}
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={e => {
-                const file = e.target.files?.[0];
-                if (file) handleImageUpload(file);
-              }}
-            />
+
           </div>
           <div className="text-center sm:text-left flex-1">
             <div className="text-xs uppercase tracking-widest font-bold opacity-90">Student portal</div>
@@ -357,12 +337,34 @@ export function StudentProfilePage() {
 
           <div className="rounded-2xl border border-border bg-muted/20 p-5 space-y-4">
             <h3 className="font-display font-bold text-lg">Class & course</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <ReadOnlyField label="Batch name" value={profile.batchName} />
-              <ReadOnlyField label="Batch timing" value={profile.batchTiming} />
-              <ReadOnlyField label="Course name" value={profile.courseName} />
-              <ReadOnlyField label="Teacher name" value={profile.teacherName} />
-            </div>
+            {profile.classes.length === 0 ? (
+              <div className="grid gap-4 sm:grid-cols-2">
+                <ReadOnlyField label="Batch name" value={profile.batchName} />
+                <ReadOnlyField label="Batch timing" value={profile.batchTiming} />
+                <ReadOnlyField label="Course name" value={profile.courseName} />
+                <ReadOnlyField label="Teacher name" value={profile.teacherName} />
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {profile.classes.map((cls, index) => (
+                  <div key={cls.id} className="rounded-2xl border border-border/80 bg-white/80 p-4 shadow-sm">
+                    <div className="mb-3 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">Batch {index + 1}</div>
+                        <div className="text-xs text-muted-foreground">{cls.batchName}</div>
+                      </div>
+                      <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                        {cls.batchTime || "No schedule"}
+                      </div>
+                    </div>
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <ReadOnlyField label="Course name" value={cls.courseName} />
+                      <ReadOnlyField label="Teacher name" value={cls.teacherName || "—"} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

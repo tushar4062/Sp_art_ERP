@@ -12,7 +12,7 @@ const seniorNav: NavItem[] = [
   { to: "/senior-teacher/students", label: "Students", icon: Users, end: false },
   { to: "/senior-teacher/batches", label: "Batches", icon: Boxes, end: false },
   { to: "/senior-teacher/classes", label: "My Classes", icon: CalendarDays },
-  { to: "/senior-teacher/admission", label: "Admission", icon: UserPlus },
+  { to: "/senior-teacher/students", label: "Student admission", icon: Users, end: false },
   { to: "/senior-teacher/drawing-tests", label: "Drawing Tests", icon: Palette },
   { to: "/senior-teacher/progress", label: "Student Progress", icon: TrendingUp },
   { to: "/senior-teacher/slot-requests", label: "Slot Requests", icon: ClipboardList },

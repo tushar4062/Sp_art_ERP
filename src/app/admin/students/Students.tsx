@@ -13,7 +13,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sh
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Checkbox } from '@/components/ui/checkbox';
 
 type Student = {
   id: string;
@@ -35,15 +34,13 @@ type Student = {
   occupation?: string;
   fatherName?: string;
   fatherMobile?: string;
+  fatherOccupation?: string;
   motherName?: string;
   motherMobile?: string;
+  motherOccupation?: string;
   address?: string;
-  currentCourse?: string;
-  batchDays?: string;
-  batchTime?: string;
-  courseDurationMonths?: number;
-  artTeacher?: string;
-  vanFacility?: boolean;
+  howYouKnowUs?: string;
+  howYouComeToKnow?: string;
 };
 
 type StudentForm = {
@@ -51,7 +48,6 @@ type StudentForm = {
   fullName: string;
   email: string;
   badgeId: string;
-  className: string;
   feeStatus: 'Paid' | 'Pending' | 'Overdue';
   phone: string;
   photo: string;
@@ -64,26 +60,41 @@ type StudentForm = {
   occupation: string;
   fatherName: string;
   fatherMobile: string;
+  fatherOccupation: string;
   motherName: string;
   motherMobile: string;
+  motherOccupation: string;
   address: string;
-  currentCourse: string;
-  batchDays: string;
-  batchTime: string;
-  courseDurationMonths: number;
-  artTeacher: string;
-  vanFacility: boolean;
+  howYouKnowUs: string;
+};
+
+type StudentEnrollment = {
+  enrollmentId?: string;
+  studentId: string;
+  courseId?: string;
+  courseTitle?: string;
+  courseCode?: string;
+  enrollmentDate?: string;
+  status?: string;
+};
+
+type StudentBatch = {
+  batchDay?: string;
+  batchTime?: string;
+  batchTiming?: string;
+  startDate?: string;
+  endDate?: string;
+  startMonth?: string;
+  endMonth?: string;
 };
 
 const CLASSES = ['Beginner', 'Intermediate', 'Advanced', 'Professional'];
 const FEE_STATUS = ['Paid', 'Pending', 'Overdue'] as const;
-const DURATIONS = ['3 months', '6 months', '12 months', '18 months', '24 months'];
 
 const defaultForm: StudentForm = {
   fullName: '',
   email: '',
   badgeId: '',
-  className: 'Not Assigned',
   feeStatus: 'Pending',
   phone: '',
   photo: '',
@@ -96,15 +107,12 @@ const defaultForm: StudentForm = {
   occupation: '',
   fatherName: '',
   fatherMobile: '',
+  fatherOccupation: '',
   motherName: '',
   motherMobile: '',
+  motherOccupation: '',
   address: '',
-  currentCourse: '',
-  batchDays: '',
-  batchTime: '',
-  courseDurationMonths: 12,
-  artTeacher: '',
-  vanFacility: false,
+  howYouKnowUs: '',
 };
 
 const formatDateInputValue = (value?: string) => {
@@ -119,7 +127,6 @@ const mapStudentToForm = (student: Student): StudentForm => ({
   fullName: student.name ?? '',
   email: student.email ?? '',
   badgeId: student.badgeId ?? '',
-  className: student.class ?? 'Not Assigned',
   feeStatus: student.feeStatus ?? 'Pending',
   phone: student.phone ?? '',
   photo: student.photo ?? '',
@@ -132,22 +139,18 @@ const mapStudentToForm = (student: Student): StudentForm => ({
   occupation: student.occupation ?? '',
   fatherName: student.fatherName ?? '',
   fatherMobile: student.fatherMobile ?? '',
+  fatherOccupation: student.fatherOccupation ?? '',
   motherName: student.motherName ?? '',
   motherMobile: student.motherMobile ?? '',
+  motherOccupation: student.motherOccupation ?? '',
   address: student.address ?? '',
-  currentCourse: student.currentCourse ?? '',
-  batchDays: student.batchDays ?? '',
-  batchTime: student.batchTime ?? '',
-  courseDurationMonths: student.courseDurationMonths ?? 12,
-  artTeacher: student.artTeacher ?? '',
-  vanFacility: student.vanFacility ?? false,
+  howYouKnowUs: student.howYouKnowUs ?? student.howYouComeToKnow ?? '',
 });
 
 const buildStudentPayload = (form: StudentForm) => ({
   fullName: form.fullName,
   email: form.email || undefined,
   badgeId: form.badgeId,
-  className: form.className,
   phone: form.phone || undefined,
   photo: form.photo || undefined,
   dob: form.dob || undefined,
@@ -159,15 +162,12 @@ const buildStudentPayload = (form: StudentForm) => ({
   occupation: form.occupation || undefined,
   fatherName: form.fatherName || undefined,
   fatherMobile: form.fatherMobile || undefined,
+  fatherOccupation: form.fatherOccupation || undefined,
   motherName: form.motherName || undefined,
   motherMobile: form.motherMobile || undefined,
+  motherOccupation: form.motherOccupation || undefined,
   address: form.address || undefined,
-  currentCourse: form.currentCourse || undefined,
-  batchDays: form.batchDays || undefined,
-  batchTime: form.batchTime || undefined,
-  courseDurationMonths: form.courseDurationMonths,
-  artTeacher: form.artTeacher || undefined,
-  vanFacility: form.vanFacility,
+  howYouKnowUs: form.howYouKnowUs || undefined,
   feeStatus: form.feeStatus,
 });
 
@@ -179,6 +179,8 @@ export default function StudentsPage() {
   const [filterFee, setFilterFee] = useState('All');
   const [sheetOpen, setSheetOpen] = useState(false);
   const [viewStudent, setViewStudent] = useState<Student | null>(null);
+  const [currentEnrollment, setCurrentEnrollment] = useState<StudentEnrollment | null>(null);
+  const [currentBatch, setCurrentBatch] = useState<StudentBatch | null>(null);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [form, setForm] = useState<StudentForm>(defaultForm);
   const [currentPage, setCurrentPage] = useState(1);
@@ -233,6 +235,51 @@ export default function StudentsPage() {
     setEditingStudent(null);
     setForm(defaultForm);
   };
+
+  useEffect(() => {
+    if (!viewStudent) {
+      setCurrentEnrollment(null);
+      return;
+    }
+
+    let mounted = true;
+    setCurrentEnrollment(null);
+
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/enrollments', { credentials: 'include' });
+        if (!res.ok) {
+          console.warn('Failed to fetch enrollments for student profile');
+          return;
+        }
+        const json = (await res.json()) as { enrollments?: StudentEnrollment[] };
+        const enrollments: StudentEnrollment[] = Array.isArray(json.enrollments) ? json.enrollments : [];
+        // Find latest enrollment for this student
+        const matching = enrollments.find((e) => e.studentId === viewStudent.id);
+        if (mounted && matching) {
+          setCurrentEnrollment(matching);
+
+          // Fetch batch details for this student (if any)
+          (async () => {
+            try {
+              const bres = await fetch(`/api/admin/students/${viewStudent.id}/batch`, { credentials: 'include' });
+              if (!bres.ok) return;
+              const bjson = (await bres.json()) as { success?: boolean; data?: { batch?: StudentBatch } };
+              if (bjson?.success && bjson.data?.batch) {
+                if (mounted) setCurrentBatch(bjson.data.batch);
+              }
+            } catch (err) {
+              console.error('Error loading batch for student:', err);
+            }
+          })();
+        }
+      } catch (e) {
+        console.error('Error loading student enrollments:', e);
+      }
+    })();
+
+    return () => { mounted = false; };
+  }, [viewStudent]);
 
   const handlePhotoUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -590,66 +637,32 @@ export default function StudentsPage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">
-                  <Label htmlFor="className">Class</Label>
-                  <Select value={form.className} onValueChange={(value) => setForm(current => ({ ...current, className: value }))}>
-                    <SelectTrigger id="className">
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Not Assigned">Not Assigned</SelectItem>
-                      {CLASSES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="fatherOccupation">Father Occupation</Label>
+                  <Input id="fatherOccupation" placeholder="Enter father's occupation" value={form.fatherOccupation} onChange={(e) => setForm(current => ({ ...current, fatherOccupation: e.target.value }))} />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="currentCourse">Current course</Label>
-                  <Input id="currentCourse" value={form.currentCourse} onChange={(e) => setForm(current => ({ ...current, currentCourse: e.target.value }))} />
+                  <Label htmlFor="motherOccupation">Mother Occupation</Label>
+                  <Input id="motherOccupation" placeholder="Enter mother's occupation" value={form.motherOccupation} onChange={(e) => setForm(current => ({ ...current, motherOccupation: e.target.value }))} />
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="batchDays">Batch days</Label>
-                  <Input id="batchDays" value={form.batchDays} onChange={(e) => setForm(current => ({ ...current, batchDays: e.target.value }))} placeholder="e.g. Mon, Wed, Fri" />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="batchTime">Batch time</Label>
-                  <Input id="batchTime" value={form.batchTime} onChange={(e) => setForm(current => ({ ...current, batchTime: e.target.value }))} placeholder="e.g. 4:00 - 5:30 PM" />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-2">
-                  <Label htmlFor="courseDurationMonths">Duration</Label>
-                  <Select value={`${form.courseDurationMonths} months`} onValueChange={(value) => setForm(current => ({ ...current, courseDurationMonths: Number(value.split(' ')[0]) }))}>
-                    <SelectTrigger id="courseDurationMonths">
-                      <SelectValue placeholder="Select" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DURATIONS.map(duration => (
-                        <SelectItem key={duration} value={duration}>{duration}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="artTeacher">Art teacher</Label>
-                  <Select value={form.artTeacher} onValueChange={(value) => setForm(current => ({ ...current, artTeacher: value }))}>
-                    <SelectTrigger id="artTeacher">
-                      <SelectValue placeholder="Select teacher" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Mrs. Asha">Mrs. Asha</SelectItem>
-                      <SelectItem value="Mr. Rohit">Mr. Rohit</SelectItem>
-                      <SelectItem value="Ms. Priya">Ms. Priya</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <Checkbox checked={form.vanFacility} id="vanFacility" onCheckedChange={(value) => setForm(current => ({ ...current, vanFacility: Boolean(value) }))} />
-                <Label htmlFor="vanFacility">Van facility required</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="howYouKnowUs">How you came to know us</Label>
+                <Select value={form.howYouKnowUs} onValueChange={(value) => setForm(current => ({ ...current, howYouKnowUs: value }))}>
+                  <SelectTrigger id="howYouKnowUs">
+                    <SelectValue placeholder="Select source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Social Media">Social Media</SelectItem>
+                    <SelectItem value="Google Search">Google Search</SelectItem>
+                    <SelectItem value="Friend / Relative">Friend / Relative</SelectItem>
+                    <SelectItem value="School">School</SelectItem>
+                    <SelectItem value="Newspaper">Newspaper</SelectItem>
+                    <SelectItem value="Walk In">Walk In</SelectItem>
+                    <SelectItem value="Existing Student">Existing Student</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
@@ -670,28 +683,22 @@ export default function StudentsPage() {
           </DialogHeader>
           {viewStudent && (
             <div className="grid gap-6 py-4">
-              <div className="flex items-center justify-between gap-4 p-4 rounded-3xl border border-border bg-background">
-                <div className="flex items-center gap-4">
-                  <div className="h-24 w-24 rounded-3xl overflow-hidden bg-muted">
-                    {viewStudent.photo ? (
-                      <img src={viewStudent.photo} alt={viewStudent.name} className="h-full w-full object-cover" />
-                    ) : (
-                      <Avatar name={viewStudent.name} />
-                    )}
-                  </div>
-                  <div>
-                    <div className="text-2xl font-semibold">{viewStudent.name}</div>
-                    <div className="text-sm text-muted-foreground">{viewStudent.email || 'No email provided'}</div>
-                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
-                      <span className="rounded-full bg-muted px-2 py-1">{viewStudent.class || 'Not Assigned'}</span>
-                      <span className="rounded-full bg-muted px-2 py-1">{viewStudent.feeStatus}</span>
-                      <span className="rounded-full bg-muted px-2 py-1">Badge: {viewStudent.badgeId}</span>
-                    </div>
-                  </div>
+              <div className="flex items-center gap-4 p-4 rounded-3xl border border-border bg-background">
+                <div className="h-24 w-24 rounded-3xl overflow-hidden bg-muted">
+                  {viewStudent.photo ? (
+                    <img src={viewStudent.photo} alt={viewStudent.name} className="h-full w-full object-cover" />
+                  ) : (
+                    <Avatar name={viewStudent.name} />
+                  )}
                 </div>
-                <div className="text-right text-sm text-muted-foreground">
-                  <div>Teacher</div>
-                  <div className="font-semibold">{viewStudent.artTeacher || 'Not assigned'}</div>
+                <div>
+                  <div className="text-2xl font-semibold">{viewStudent.name}</div>
+                  <div className="text-sm text-muted-foreground">{viewStudent.email || 'No email provided'}</div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                    <span className="rounded-full bg-muted px-2 py-1">{viewStudent.class || 'Not Assigned'}</span>
+                    <span className="rounded-full bg-muted px-2 py-1">{viewStudent.feeStatus}</span>
+                    <span className="rounded-full bg-muted px-2 py-1">Badge: {viewStudent.badgeId}</span>
+                  </div>
                 </div>
               </div>
 
@@ -712,8 +719,11 @@ export default function StudentsPage() {
                   <div className="grid gap-2 text-sm">
                     <div><span className="font-medium">Father:</span> {viewStudent.fatherName || 'N/A'}</div>
                     <div><span className="font-medium">Father mobile:</span> {viewStudent.fatherMobile || 'N/A'}</div>
+                    <div><span className="font-medium">Father occupation:</span> {viewStudent.fatherOccupation || 'N/A'}</div>
                     <div><span className="font-medium">Mother:</span> {viewStudent.motherName || 'N/A'}</div>
                     <div><span className="font-medium">Mother mobile:</span> {viewStudent.motherMobile || 'N/A'}</div>
+                    <div><span className="font-medium">Mother occupation:</span> {viewStudent.motherOccupation || 'N/A'}</div>
+                    <div><span className="font-medium">How did you know us:</span> {viewStudent.howYouKnowUs || viewStudent.howYouComeToKnow || 'N/A'}</div>
                   </div>
                 </div>
               </div>
@@ -730,11 +740,13 @@ export default function StudentsPage() {
                 <div className="rounded-3xl border border-border bg-background p-5">
                   <div className="text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-3">Course details</div>
                   <div className="grid gap-2 text-sm">
-                    <div><span className="font-medium">Current course:</span> {viewStudent.currentCourse || 'N/A'}</div>
-                    <div><span className="font-medium">Batch days:</span> {viewStudent.batchDays || 'N/A'}</div>
-                    <div><span className="font-medium">Batch time:</span> {viewStudent.batchTime || 'N/A'}</div>
-                    <div><span className="font-medium">Duration:</span> {viewStudent.courseDurationMonths ? `${viewStudent.courseDurationMonths} months` : 'N/A'}</div>
-                    <div><span className="font-medium">Van facility:</span> {viewStudent.vanFacility ? 'Yes' : 'No'}</div>
+                    <div><span className="font-medium">Current course:</span> {currentEnrollment?.courseTitle || 'N/A'}</div>
+                    {currentBatch?.batchDay && <div><span className="font-medium">Batch days:</span> {currentBatch.batchDay}</div>}
+                    {currentBatch?.batchTime && <div><span className="font-medium">Batch time:</span> {currentBatch.batchTime}</div>}
+                    {(currentBatch?.startDate || currentBatch?.startMonth) && (currentBatch?.endDate || currentBatch?.endMonth) && (
+                      <div><span className="font-medium">Duration:</span> {`${currentBatch.startDate || currentBatch.startMonth} - ${currentBatch.endDate || currentBatch.endMonth}`}</div>
+                    )}
+                    <div><span className="font-medium">Enrollment date:</span> {currentEnrollment?.enrollmentDate ? formatDateInputValue(currentEnrollment.enrollmentDate) : 'N/A'}</div>
                   </div>
                 </div>
               </div>

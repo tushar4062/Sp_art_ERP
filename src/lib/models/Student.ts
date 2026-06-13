@@ -18,16 +18,15 @@ export interface StudentDocument extends mongoose.Document {
   occupation?: string;
   fatherName?: string;
   fatherMobile?: string;
+  fatherOccupation?: string;
   motherName?: string;
   motherMobile?: string;
+  motherOccupation?: string;
   address?: string;
-  currentCourse?: string;
-  batchDays?: string;
-  batchTime?: string;
+  howYouComeToKnow?: string;
+  howYouKnowUs?: string;
   courseDurationMonths: number;
   courseEndDate?: Date;
-  artTeacher?: string;
-  vanFacility: boolean;
   feeStatus: 'Paid' | 'Pending' | 'Overdue';
   /** Senior teacher who manages this student record */
   createdBy?: mongoose.Types.ObjectId;
@@ -53,16 +52,15 @@ const StudentSchema = new mongoose.Schema<StudentDocument>({
   occupation: { type: String },
   fatherName: { type: String },
   fatherMobile: { type: String },
+  fatherOccupation: { type: String },
   motherName: { type: String },
   motherMobile: { type: String },
+  motherOccupation: { type: String },
   address: { type: String },
-  currentCourse: { type: String },
-  batchDays: { type: String },
-  batchTime: { type: String },
+  howYouKnowUs: { type: String },
+  howYouComeToKnow: { type: String },
   courseDurationMonths: { type: Number, default: 12 },
   courseEndDate: { type: Date },
-  artTeacher: { type: String },
-  vanFacility: { type: Boolean, default: false },
   feeStatus: { type: String, enum: ['Paid', 'Pending', 'Overdue'], default: 'Pending' },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'SeniorTeacher', index: true },
 }, {

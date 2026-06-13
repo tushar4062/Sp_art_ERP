@@ -121,6 +121,7 @@ export function StudentQueryRequestModal({
             <Input
               id="query-email"
               type="email"
+              disabled
               className="rounded-xl"
               {...register("studentEmail")}
             />

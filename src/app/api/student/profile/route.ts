@@ -5,6 +5,7 @@ import { apiError, apiSuccess } from "@/lib/api-response";
 import { requireStudentFromRequest } from "@/lib/auth/require-student";
 import { findStudentById, toProfileDto, updateStudentProfile } from "@/lib/student-portal";
 import { getStudentProfileEditAccess } from "@/lib/student/studentQueryAccess";
+import { findBatchesForStudent } from "@/lib/student/studentBatches";
 
 export const runtime = "nodejs";
 
@@ -32,9 +33,27 @@ export async function GET(request: NextRequest) {
     }
 
     const access = await getStudentProfileEditAccess(auth.student.id);
+    const classes = await findBatchesForStudent(student);
+    const currentClass = classes[0] ?? null;
+
+    const profile = toProfileDto(student);
+    profile.classes = classes.map(c => ({
+      id: c.id,
+      batchName: c.batchName,
+      batchTiming: c.batchTime,
+      courseName: c.courseName,
+      teacherName: c.teachers,
+    }));
+
+    if (currentClass) {
+      profile.batchName = currentClass.batchName;
+      profile.batchTiming = currentClass.batchTime;
+      profile.courseName = currentClass.courseName;
+      profile.teacherName = currentClass.teachers;
+    }
 
     return apiSuccess({
-      profile: toProfileDto(student),
+      profile,
       canEditProfile: access.canEditProfile,
       latestQuery: access.latestQuery,
     });

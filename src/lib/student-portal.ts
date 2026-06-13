@@ -20,6 +20,13 @@ export type StudentProfileDto = {
   courseName: string;
   teacherName: string;
   role: string;
+  classes: {
+    id: string;
+    batchName: string;
+    batchTiming: string;
+    courseName: string;
+    teacherName: string;
+  }[];
 };
 
 function escapeRegex(value: string) {
@@ -37,10 +44,11 @@ export function toProfileDto(doc: StudentDocument): StudentProfileDto {
     studentId: doc.badgeId,
     profileImage: doc.photo ?? "",
     batchName: doc.className ?? "",
-    batchTiming: doc.batchTime ?? "",
-    courseName: doc.currentCourse ?? doc.className ?? "",
-    teacherName: doc.artTeacher ?? "",
+    batchTiming: "",
+    courseName: doc.className ?? "",
+    teacherName: "",
     role: "student",
+    classes: [],
   };
 }
 

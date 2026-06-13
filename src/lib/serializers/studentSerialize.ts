@@ -7,7 +7,6 @@ type StudentLike = Pick<
   | "phone"
   | "gender"
   | "age"
-  | "currentCourse"
   | "className"
   | "parentName"
   | "fatherName"
@@ -16,7 +15,6 @@ type StudentLike = Pick<
   | "address"
   | "photo"
   | "feeStatus"
-  | "artTeacher"
   | "createdBy"
 > & {
   _id: { toString(): string };
@@ -50,7 +48,7 @@ export function toStudentJson(doc: StudentDocument | StudentLike) {
     phone: doc.phone ?? "",
     gender: doc.gender ?? "",
     age: doc.age ?? null,
-    course: doc.currentCourse ?? "",
+    course: "",
     className: doc.className,
     parentName: doc.parentName ?? doc.fatherName ?? "",
     parentContact: doc.fatherMobile ?? doc.motherMobile ?? doc.phone ?? "",
@@ -60,7 +58,7 @@ export function toStudentJson(doc: StudentDocument | StudentLike) {
     feeStatus: doc.feeStatus,
     attendancePercentage: 0,
     joiningDate: formatStudentDate(doc.createdAt),
-    artTeacher: doc.artTeacher ?? "",
+    artTeacher: "",
     createdBy: doc.createdBy?.toString?.() ?? (doc.createdBy ? String(doc.createdBy) : ""),
     createdAt: toIso(doc.createdAt),
     updatedAt: toIso(doc.updatedAt),
