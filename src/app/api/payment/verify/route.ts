@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import mongoose from "mongoose";
 import dbConnect from "@/lib/mongodb";
+import Course from "@/lib/models/Course";
+import CourseEnrollment from "@/lib/models/CourseEnrollment";
 import { requireStudentFromRequest } from "@/lib/auth/require-student";
 import { processSuccessfulPayment } from "@/lib/enrollment/enrollmentPaymentService";
-import type { PaymentType } from "@/lib/enrollment/paymentCalculations";
+import { completeReferralOnPayment } from "@/lib/referral/referralService";
+import { calculatePaymentBreakdown, type PaymentType } from "@/lib/enrollment/paymentCalculations";
 
 type VerifyPaymentRequest = {
   razorpay_order_id: string;
@@ -15,6 +18,7 @@ type VerifyPaymentRequest = {
   paymentType?: PaymentType;
   termNo?: number;
   enrollmentId?: string;
+  referralCode?: string;
 };
 
 export const runtime = "nodejs";
@@ -34,6 +38,7 @@ export async function POST(request: NextRequest) {
       paymentType = "full",
       termNo = 1,
       enrollmentId,
+      referralCode,
     } = body;
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !courseId) {
@@ -69,6 +74,32 @@ export async function POST(request: NextRequest) {
       razorpayOrderId: razorpay_order_id,
       razorpayPaymentId: razorpay_payment_id,
       amountPaid: Number(amount || 0),
+    });
+
+    const course = await Course.findById(courseId);
+    const enrollment = await CourseEnrollment.findById(result.enrollmentId);
+
+    let courseAmount = Number(enrollment?.totalAmount ?? enrollment?.amount ?? 0);
+    if (courseAmount <= 0 && course) {
+      const baseFee = Math.max(0, Number(course.discountFees ?? course.totalFees ?? 0));
+      const duration = Number(course.duration ?? 2);
+      const resolvedPaymentType: PaymentType =
+        enrollment?.paymentType === "installment" ? "installment" : "full";
+      const breakdown = calculatePaymentBreakdown(baseFee, duration, resolvedPaymentType);
+      courseAmount = breakdown.totalAmount;
+    }
+    if (courseAmount <= 0) {
+      courseAmount = Number(amount || 0);
+    }
+
+    await completeReferralOnPayment({
+      referredStudentId: auth.student.id,
+      enrollmentId: result.enrollmentId,
+      courseId,
+      courseTitle: course?.courseTitle ?? "Course",
+      courseAmount,
+      orderId: razorpay_order_id,
+      referralCode: typeof referralCode === "string" ? referralCode.trim() : undefined,
     });
 
     return NextResponse.json({

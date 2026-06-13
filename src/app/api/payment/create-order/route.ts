@@ -7,6 +7,10 @@ import Course from "@/lib/models/Course";
 import Student from "@/lib/models/Student";
 import { resolvePaymentOrder } from "@/lib/enrollment/enrollmentPaymentService";
 import type { PaymentType } from "@/lib/enrollment/paymentCalculations";
+import {
+  validateReferralCode,
+  createPendingReferralTransaction,
+} from "@/lib/referral/referralService";
 
 export const runtime = "nodejs";
 
@@ -29,6 +33,8 @@ export async function POST(request: NextRequest) {
     const termNo = Math.max(1, Number(body?.termNo ?? 1));
     const enrollmentId =
       typeof body?.enrollmentId === "string" ? body.enrollmentId.trim() : undefined;
+    const referralCode =
+      typeof body?.referralCode === "string" ? body.referralCode.trim() : undefined;
 
     if (!courseId) {
       return NextResponse.json({ error: "courseId is required" }, { status: 400 });
@@ -51,6 +57,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: message }, { status });
     }
 
+    let validatedReferral: Awaited<ReturnType<typeof validateReferralCode>> | null = null;
+    if (referralCode && !enrollmentId) {
+      const validation = await validateReferralCode(referralCode, auth.student.id);
+      if (validation.valid === false) {
+        return NextResponse.json({ error: validation.error }, { status: 400 });
+      }
+      validatedReferral = validation;
+    }
+
     const { keyId: razorpayKeyId, keySecret: razorpayKeySecret } = assertRazorpayConfigured();
     const razorpay = new Razorpay({ key_id: razorpayKeyId, key_secret: razorpayKeySecret });
 
@@ -64,8 +79,22 @@ export async function POST(request: NextRequest) {
         paymentType: resolved.paymentType,
         termNo: String(resolved.termNo),
         ...(resolved.enrollmentId ? { enrollmentId: resolved.enrollmentId } : {}),
+        ...(validatedReferral?.valid ? { referralCode: validatedReferral.referralCode } : {}),
       },
     });
+
+    if (validatedReferral?.valid) {
+      const student = await Student.findById(auth.student.id).select("fullName");
+      await createPendingReferralTransaction({
+        referrerId: validatedReferral.referrerId,
+        referredStudentId: auth.student.id,
+        referredStudentName: student?.fullName ?? "Student",
+        referralCode: validatedReferral.referralCode,
+        referralPercentage: validatedReferral.referralPercentage,
+        courseAmount: resolved.breakdown.totalAmount,
+        orderId: order.id,
+      });
+    }
 
     const student = await Student.findById(auth.student.id).select("fullName email phone fatherMobile");
     const prefill = {

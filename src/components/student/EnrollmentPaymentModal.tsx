@@ -10,7 +10,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Loader2, CreditCard, CalendarClock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Loader2, CreditCard, CalendarClock, Gift, CheckCircle2 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import {
   calculatePaymentBreakdown,
@@ -63,6 +64,13 @@ export function EnrollmentPaymentModal({
   const isSubsequentPay = Boolean(enrollmentId);
   const [paymentType, setPaymentType] = useState<PaymentType>("full");
   const [loading, setLoading] = useState(false);
+  const [referralInput, setReferralInput] = useState("");
+  const [appliedReferral, setAppliedReferral] = useState<{
+    code: string;
+    referrerName: string;
+    percentage: number;
+  } | null>(null);
+  const [referralLoading, setReferralLoading] = useState(false);
 
   const fullBreakdown = calculatePaymentBreakdown(baseFee, duration, "full");
   const installmentBreakdown = calculatePaymentBreakdown(baseFee, duration, "installment");
@@ -78,10 +86,67 @@ export function EnrollmentPaymentModal({
       ? fullBreakdown.totalAmount
       : installmentBreakdown.termAmounts[0];
 
+  const handleApplyReferral = async () => {
+    const code = referralInput.trim();
+    if (!code) {
+      toast({ title: "Enter referral code", variant: "destructive" });
+      return;
+    }
+    setReferralLoading(true);
+    try {
+      const res = await fetch("/api/student/referrals/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ referralCode: code }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        setAppliedReferral(null);
+        toast({
+          title: "Invalid Referral Code",
+          description: data.error || "Referral code could not be applied",
+          variant: "destructive",
+        });
+        return;
+      }
+      setAppliedReferral({
+        code: data.referralCode,
+        referrerName: data.referrerName,
+        percentage: data.referralPercentage,
+      });
+      toast({ title: "Referral Applied Successfully", description: `Referrer: ${data.referrerName}` });
+    } catch {
+      toast({ title: "Error", description: "Failed to validate referral code", variant: "destructive" });
+    } finally {
+      setReferralLoading(false);
+    }
+  };
+
   const handlePay = useCallback(async () => {
     if (!courseId) return;
     setLoading(true);
     try {
+      let referralForOrder = appliedReferral;
+
+      if (!isSubsequentPay && !referralForOrder && referralInput.trim()) {
+        const valRes = await fetch("/api/student/referrals/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ referralCode: referralInput.trim() }),
+        });
+        const valData = await valRes.json();
+        if (valRes.ok && valData.valid) {
+          referralForOrder = {
+            code: valData.referralCode,
+            referrerName: valData.referrerName,
+            percentage: valData.referralPercentage,
+          };
+          setAppliedReferral(referralForOrder);
+        }
+      }
+
       const res = await fetch("/api/payment/create-order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,6 +156,7 @@ export function EnrollmentPaymentModal({
           paymentType: isSubsequentPay ? "installment" : paymentType,
           termNo: isSubsequentPay ? termNo : 1,
           enrollmentId,
+          ...(referralForOrder && !isSubsequentPay ? { referralCode: referralForOrder.code } : {}),
         }),
       });
       const data = await res.json();
@@ -119,6 +185,7 @@ export function EnrollmentPaymentModal({
         amount: data.amount as number,
         enrollmentIdFromOrder: data.enrollmentId as string | undefined,
         prefill: data.prefill as { name?: string; email?: string; contact?: string } | undefined,
+        referralCode: referralForOrder?.code,
       };
 
       // Close our modal before Razorpay opens so the dialog overlay does not block
@@ -160,6 +227,9 @@ export function EnrollmentPaymentModal({
                 paymentType: isSubsequentPay ? "installment" : paymentType,
                 termNo: isSubsequentPay ? termNo : 1,
                 enrollmentId: payContext.enrollmentIdFromOrder || enrollmentId,
+                ...(payContext.referralCode && !isSubsequentPay
+                  ? { referralCode: payContext.referralCode }
+                  : {}),
               }),
             });
             const verifyData = await verifyRes.json();
@@ -213,12 +283,14 @@ export function EnrollmentPaymentModal({
     onSuccess,
     paymentType,
     termNo,
+    appliedReferral,
+    referralInput,
   ]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg rounded-2xl border-slate-200 p-0 overflow-hidden">
-        <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 text-white">
+      <DialogContent className="flex max-h-[90vh] max-w-lg flex-col overflow-hidden rounded-2xl border-slate-200 p-0">
+        <div className="shrink-0 bg-gradient-to-r from-blue-600 to-indigo-600 px-6 py-5 text-white">
           <DialogHeader className="text-left space-y-1">
             <DialogTitle className="text-xl font-bold text-white">
               {isSubsequentPay ? `Pay Term ${termNo}` : "Complete Enrollment"}
@@ -229,7 +301,8 @@ export function EnrollmentPaymentModal({
           </DialogHeader>
         </div>
 
-        <div className="space-y-5 px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+          <div className="space-y-5 px-6 py-5">
           {!isSubsequentPay && (
             <div className="grid grid-cols-2 gap-3">
               <button
@@ -263,6 +336,44 @@ export function EnrollmentPaymentModal({
             </div>
           )}
 
+          {!isSubsequentPay && (
+            <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-4 space-y-3">
+              <div className="flex items-center gap-2">
+                <Gift className="h-4 w-4 text-violet-600" />
+                <p className="text-sm font-semibold text-slate-900">Do you have a Referral Code?</p>
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={referralInput}
+                  onChange={e => {
+                    setReferralInput(e.target.value.toUpperCase());
+                    setAppliedReferral(null);
+                  }}
+                  placeholder="e.g. SPARTRF-0001"
+                  className="uppercase bg-white"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleApplyReferral}
+                  disabled={referralLoading || !referralInput.trim()}
+                  className="shrink-0"
+                >
+                  {referralLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Apply"}
+                </Button>
+              </div>
+              {appliedReferral && (
+                <div className="flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+                  <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="font-semibold">Valid Referral Found</p>
+                    <p>{appliedReferral.referrerName} · {appliedReferral.percentage}% program active</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2 text-sm">
             <div className="flex justify-between text-slate-600">
               <span>Base Amount</span>
@@ -288,9 +399,10 @@ export function EnrollmentPaymentModal({
               </p>
             )}
           </div>
+          </div>
         </div>
 
-        <DialogFooter className="gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4">
+        <DialogFooter className="shrink-0 gap-2 border-t border-slate-100 bg-slate-50 px-6 py-4">
           <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
             Cancel
           </Button>
