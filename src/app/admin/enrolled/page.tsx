@@ -1,9 +1,18 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Users, Eye, Loader2, AlertCircle } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import { Users, Eye, Loader2, AlertCircle, Download, Bell, Filter, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "@/hooks/use-toast";
+import {
+  PaymentStatusBadge,
+  PaymentModeBadge,
+  PaymentModeSummary,
+  getEnrollmentPaymentMode,
+  filterCoursesByPaymentMode,
+  type StudentPaymentMode,
+} from "@/components/student/PaymentStatusBadge";
 import {
   Dialog,
   DialogContent,
@@ -12,6 +21,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+interface InstallmentRow {
+  installmentId: string;
+  termNo: number;
+  amount: number;
+  dueDate: string;
+  paidDate?: string;
+  paymentStatus: string;
+}
 
 interface Enrollment {
   enrollmentId: string;
@@ -24,8 +42,14 @@ interface Enrollment {
   enrollmentDate: string;
   status: 'active' | 'completed' | 'dropped';
   completionPercentage: number;
+  paymentType?: string;
+  totalAmount?: number;
+  paidAmount?: number;
+  remainingAmount?: number;
   amount?: number;
   paymentStatus?: string;
+  paymentPlanStatus?: string;
+  installments?: InstallmentRow[];
 }
 
 interface StudentEnrollments {
@@ -36,21 +60,31 @@ interface StudentEnrollments {
   courses: Enrollment[];
 }
 
+interface EnrollmentRow {
+  student: StudentEnrollments;
+  enrollment: Enrollment;
+}
+
 export default function EnrolledPage() {
   const [enrollments, setEnrollments] = useState<Enrollment[]>([]);
   const [studentEnrollments, setStudentEnrollments] = useState<StudentEnrollments[]>([]);
   const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<"all" | "pending" | "overdue">("all");
+  const [paymentModeFilter, setPaymentModeFilter] = useState<"all" | StudentPaymentMode>("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<StudentEnrollments | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [remindingId, setRemindingId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchEnrollments();
-  }, []);
+  }, [filter]);
 
   const fetchEnrollments = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/admin/enrollments', { credentials: 'include' });
+      const query = filter === "all" ? "" : `?filter=${filter}`;
+      const res = await fetch(`/api/admin/enrollments${query}`, { credentials: 'include' });
       const data = await res.json();
       
       if (!res.ok) {
@@ -93,25 +127,188 @@ export default function EnrolledPage() {
     }
   };
 
-  const handleViewCourses = (student: StudentEnrollments) => {
-    setSelectedStudent(student);
+  const handleViewCourses = (student: StudentEnrollments, coursesOverride?: Enrollment[]) => {
+    const courses = coursesOverride ?? filterCoursesByPaymentMode(student.courses, paymentModeFilter);
+    setSelectedStudent({
+      ...student,
+      courses,
+      courseCount: courses.length,
+    });
     setShowModal(true);
   };
+
+  const handleDownloadReport = async () => {
+    try {
+      const res = await fetch('/api/admin/enrollments?action=report', {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Report download failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'enrollment-report.csv';
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      toast({ title: 'Report downloaded' });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to download report',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSendReminder = async (installmentId: string) => {
+    setRemindingId(installmentId);
+    try {
+      const res = await fetch('/api/admin/enrollments/remind', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ installmentId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to send reminder');
+      toast({ title: 'Reminder sent', description: 'Email reminder delivered to student.' });
+    } catch (err) {
+      toast({
+        title: 'Error',
+        description: err instanceof Error ? err.message : 'Failed to send reminder',
+        variant: 'destructive',
+      });
+    } finally {
+      setRemindingId(null);
+    }
+  };
+
+  const pendingCount = enrollments.filter(e =>
+    ['pending', 'partially_paid', 'overdue'].includes(e.paymentPlanStatus ?? e.paymentStatus ?? '')
+  ).length;
+  const overdueCount = enrollments.filter(e => (e.paymentPlanStatus ?? '') === 'overdue').length;
+
+  const filteredStudentEnrollments = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return studentEnrollments.filter(student => {
+      if (!query) return true;
+      return (
+        student.studentName.toLowerCase().includes(query) ||
+        student.studentEmail.toLowerCase().includes(query) ||
+        student.courses.some(
+          c =>
+            c.courseTitle.toLowerCase().includes(query) ||
+            c.courseCode.toLowerCase().includes(query),
+        )
+      );
+    });
+  }, [studentEnrollments, searchQuery]);
+
+  const filteredEnrollmentRows = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    const rows: EnrollmentRow[] = [];
+
+    for (const student of studentEnrollments) {
+      for (const enrollment of student.courses) {
+        const mode = getEnrollmentPaymentMode(enrollment);
+        if (paymentModeFilter !== "all" && mode !== paymentModeFilter) continue;
+
+        if (query) {
+          const matches =
+            student.studentName.toLowerCase().includes(query) ||
+            student.studentEmail.toLowerCase().includes(query) ||
+            enrollment.courseTitle.toLowerCase().includes(query) ||
+            enrollment.courseCode.toLowerCase().includes(query);
+          if (!matches) continue;
+        }
+
+        rows.push({ student, enrollment });
+      }
+    }
+
+    return rows.sort((a, b) => {
+      const byName = a.student.studentName.localeCompare(b.student.studentName);
+      if (byName !== 0) return byName;
+      return a.enrollment.courseTitle.localeCompare(b.enrollment.courseTitle);
+    });
+  }, [studentEnrollments, searchQuery, paymentModeFilter]);
+
+  const isCourseLevelView = paymentModeFilter !== "all";
+  const visibleRowCount = isCourseLevelView
+    ? filteredEnrollmentRows.length
+    : filteredStudentEnrollments.length;
 
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Enrolled Students</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Manage student course enrollments
+            Manage enrollments, installments, and payment reminders
           </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleDownloadReport} className="gap-2">
+            <Download className="h-4 w-4" />
+            Download Report
+          </Button>
         </div>
       </div>
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-md">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search by student name, email, or course..."
+            className="pl-9"
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(['all', 'pending', 'overdue'] as const).map(f => (
+            <Button
+              key={f}
+              size="sm"
+              variant={filter === f ? 'default' : 'outline'}
+              onClick={() => setFilter(f)}
+              className="gap-1"
+            >
+              <Filter className="h-3 w-3" />
+              {f === 'all' ? 'All' : f === 'pending' ? 'Pending' : 'Overdue'}
+            </Button>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <span className="text-xs font-medium text-muted-foreground self-center mr-1">Payment:</span>
+        {(['all', 'full', 'partial'] as const).map(f => (
+          <Button
+            key={f}
+            type="button"
+            size="sm"
+            variant={paymentModeFilter === f ? 'default' : 'outline'}
+            onClick={() => setPaymentModeFilter(f)}
+            aria-pressed={paymentModeFilter === f}
+          >
+            {f === 'all' ? 'All Payments' : f === 'full' ? 'Full Payment' : 'Partial Payment'}
+          </Button>
+        ))}
+      </div>
+
+      {paymentModeFilter !== "all" && (
+        <p className="text-sm text-muted-foreground">
+          Showing {filteredEnrollmentRows.length} {paymentModeFilter === "full" ? "full payment" : "partial payment"} enrollment
+          {filteredEnrollmentRows.length !== 1 ? "s" : ""}
+        </p>
+      )}
+
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="flex items-center gap-3">
             <Users className="h-8 w-8 text-primary" />
@@ -132,14 +329,19 @@ export default function EnrolledPage() {
         </div>
         <div className="rounded-lg border border-border bg-card p-4">
           <div className="flex items-center gap-3">
-            <Eye className="h-8 w-8 text-green-500" />
+            <Bell className="h-8 w-8 text-amber-500" />
             <div>
-              <p className="text-sm text-muted-foreground">Avg Courses/Student</p>
-              <p className="text-2xl font-bold">
-                {studentEnrollments.length > 0
-                  ? (enrollments.length / studentEnrollments.length).toFixed(1)
-                  : 0}
-              </p>
+              <p className="text-sm text-muted-foreground">Pending Payments</p>
+              <p className="text-2xl font-bold">{pendingCount}</p>
+            </div>
+          </div>
+        </div>
+        <div className="rounded-lg border border-border bg-card p-4">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-8 w-8 text-red-500" />
+            <div>
+              <p className="text-sm text-muted-foreground">Overdue</p>
+              <p className="text-2xl font-bold">{overdueCount}</p>
             </div>
           </div>
         </div>
@@ -154,9 +356,62 @@ export default function EnrolledPage() {
               <p className="text-sm text-muted-foreground">Loading enrollments...</p>
             </div>
           </div>
-        ) : studentEnrollments.length === 0 ? (
+        ) : visibleRowCount === 0 ? (
           <div className="flex items-center justify-center h-64">
-            <p className="text-sm text-muted-foreground">No enrollments found</p>
+            <p className="text-sm text-muted-foreground">
+              {searchQuery || paymentModeFilter !== "all"
+                ? "No enrollments match your search or filters"
+                : "No enrollments found"}
+            </p>
+          </div>
+        ) : isCourseLevelView ? (
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="border-b border-border bg-muted/50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Student Name</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Email</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold text-foreground">Course</th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-foreground">Payment Mode</th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-foreground">Payment Status</th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-foreground">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEnrollmentRows.map(({ student, enrollment }, index) => (
+                  <tr
+                    key={enrollment.enrollmentId}
+                    className={`border-b border-border ${
+                      index % 2 === 0 ? 'bg-muted/30' : ''
+                    } hover:bg-muted/50 transition-colors`}
+                  >
+                    <td className="px-6 py-4 text-sm font-medium text-foreground">{student.studentName}</td>
+                    <td className="px-6 py-4 text-sm text-muted-foreground">{student.studentEmail}</td>
+                    <td className="px-6 py-4 text-sm text-foreground">
+                      <div className="font-medium">{enrollment.courseTitle}</div>
+                      <div className="text-xs text-muted-foreground">{enrollment.courseCode}</div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <PaymentModeBadge mode={getEnrollmentPaymentMode(enrollment)} />
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <PaymentStatusBadge status={enrollment.paymentPlanStatus ?? enrollment.paymentStatus} />
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => handleViewCourses(student, [enrollment])}
+                        className="gap-2"
+                      >
+                        <Eye className="h-4 w-4" />
+                        View Details
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -172,31 +427,37 @@ export default function EnrolledPage() {
                   <th className="px-6 py-3 text-center text-sm font-semibold text-foreground">
                     Courses Enrolled
                   </th>
+                  <th className="px-6 py-3 text-center text-sm font-semibold text-foreground min-w-[260px]">
+                    Payment Breakdown
+                  </th>
                   <th className="px-6 py-3 text-center text-sm font-semibold text-foreground">
                     Action
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {studentEnrollments.map((student, index) => (
+                {filteredStudentEnrollments.map((student, index) => (
                   <tr
                     key={student.studentId}
                     className={`border-b border-border ${
                       index % 2 === 0 ? 'bg-muted/30' : ''
                     } hover:bg-muted/50 transition-colors`}
                   >
-                    <td className="px-6 py-4 text-sm font-medium text-foreground">
+                    <td className="px-6 py-4 text-sm font-medium text-foreground align-top">
                       {student.studentName}
                     </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">
+                    <td className="px-6 py-4 text-sm text-muted-foreground align-top">
                       {student.studentEmail}
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-6 py-4 text-center align-top">
                       <span className="inline-flex items-center justify-center rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-800">
                         {student.courseCount}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-center">
+                    <td className="px-6 py-4 align-top">
+                      <PaymentModeSummary courses={student.courses} modeFilter="all" />
+                    </td>
+                    <td className="px-6 py-4 text-center align-top">
                       <Button
                         size="sm"
                         variant="outline"
@@ -268,30 +529,58 @@ export default function EnrolledPage() {
                         {course.status.charAt(0).toUpperCase() + course.status.slice(1)}
                       </p>
                     </div>
-                    {course.amount && (
-                      <div>
-                        <p className="text-xs text-muted-foreground">Amount Paid</p>
-                        <p className="text-sm font-semibold text-foreground">
-                          ₹{course.amount.toFixed(2)}
-                        </p>
-                      </div>
-                    )}
-                    {course.paymentStatus && (
+                    {course.paymentPlanStatus && (
                       <div>
                         <p className="text-xs text-muted-foreground">Payment Status</p>
-                        <p className={`text-sm font-semibold ${
-                          course.paymentStatus === 'completed'
-                            ? 'text-green-600'
-                            : course.paymentStatus === 'pending'
-                            ? 'text-yellow-600'
-                            : 'text-red-600'
-                        }`}>
-                          {course.paymentStatus.charAt(0).toUpperCase() +
-                            course.paymentStatus.slice(1)}
+                        <PaymentStatusBadge status={course.paymentPlanStatus} />
+                      </div>
+                    )}
+                    {(course.paymentType || course.paymentPlanStatus) && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Payment Mode</p>
+                        <PaymentModeBadge mode={getEnrollmentPaymentMode(course)} />
+                      </div>
+                    )}
+                    {course.totalAmount != null && (
+                      <div>
+                        <p className="text-xs text-muted-foreground">Total / Paid / Remaining</p>
+                        <p className="text-sm font-semibold">
+                          ₹{course.totalAmount} / ₹{course.paidAmount ?? 0} / ₹{course.remainingAmount ?? 0}
                         </p>
                       </div>
                     )}
                   </div>
+                  {course.installments && course.installments.length > 0 && (
+                    <div className="mt-4 border-t border-border pt-3 space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground">Installment Schedule</p>
+                      {course.installments.map(inst => (
+                        <div key={inst.installmentId} className="flex flex-wrap items-center justify-between gap-2 text-xs rounded-md bg-muted/40 px-3 py-2">
+                          <span>Term {inst.termNo} · ₹{inst.amount} · Due {new Date(inst.dueDate).toLocaleDateString('en-IN')}</span>
+                          <div className="flex items-center gap-2">
+                            <PaymentStatusBadge status={inst.paymentStatus} />
+                            {inst.paymentStatus !== 'paid' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs"
+                                disabled={remindingId === inst.installmentId}
+                                onClick={() => handleSendReminder(inst.installmentId)}
+                              >
+                                {remindingId === inst.installmentId ? (
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <>
+                                    <Bell className="h-3 w-3 mr-1" />
+                                    Remind
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

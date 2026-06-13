@@ -1,147 +1,97 @@
-import { NextRequest, NextResponse } from 'next/server';
-import Razorpay from 'razorpay';
-import mongoose from 'mongoose';
-import dbConnect from '@/lib/mongodb';
-import { requireStudentFromRequest } from '@/lib/auth/require-student';
-import { assertRazorpayConfigured } from '@/lib/razorpay/config';
+import { NextRequest, NextResponse } from "next/server";
+import Razorpay from "razorpay";
+import dbConnect from "@/lib/mongodb";
+import { requireStudentFromRequest } from "@/lib/auth/require-student";
+import { assertRazorpayConfigured } from "@/lib/razorpay/config";
+import Course from "@/lib/models/Course";
+import Student from "@/lib/models/Student";
+import { resolvePaymentOrder } from "@/lib/enrollment/enrollmentPaymentService";
+import type { PaymentType } from "@/lib/enrollment/paymentCalculations";
 
-export const runtime = 'nodejs';
+export const runtime = "nodejs";
+
+function normalizePhoneForRazorpay(phone?: string) {
+  if (!phone) return "";
+  const digits = phone.replace(/\D/g, "");
+  if (digits.length >= 10) return digits.slice(-10);
+  return digits;
+}
 
 export async function POST(request: NextRequest) {
-  const startTime = Date.now();
   try {
-    console.log('\n');
-    console.log('╔═══════════════════════════════════════════╗');
-    console.log('║   CREATE PAYMENT ORDER API - START        ║');
-    console.log('╚═══════════════════════════════════════════╝');
-    console.log(`Timestamp: ${new Date().toISOString()}`);
-
     const auth = await requireStudentFromRequest(request);
-    console.log(`✓ Auth check: ${auth.ok ? 'SUCCESS' : 'FAILED'}`);
-    
-    if (!auth.ok) {
-      console.log('✗ Auth failed, returning 401');
-      return auth.response;
-    }
-
-    console.log(`  Student ID: ${auth.student.id}`);
+    if (!auth.ok) return auth.response;
 
     const body = await request.json();
-    console.log(`✓ Body parsed`);
-    console.log(`  Body keys: ${Object.keys(body).join(', ')}`);
+    const courseId = typeof body?.courseId === "string" ? body.courseId.trim() : "";
+    const paymentType: PaymentType =
+      body?.paymentType === "installment" ? "installment" : "full";
+    const termNo = Math.max(1, Number(body?.termNo ?? 1));
+    const enrollmentId =
+      typeof body?.enrollmentId === "string" ? body.enrollmentId.trim() : undefined;
 
-    const amount = Number(body?.amount);
-    const courseId = typeof body?.courseId === 'string' ? body.courseId.trim() : '';
-
-    console.log(`✓ Extracted values:`);
-    console.log(`  amount: ${amount} (type: ${typeof amount})`);
-    console.log(`  courseId: ${courseId} (type: ${typeof courseId})`);
-
-    // Validate amount
-    if (!Number.isFinite(amount) || amount <= 0) {
-      console.error(`✗ Invalid amount: ${amount}`);
-      return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
-    }
-    console.log(`✓ Amount is valid and > 0`);
-
-    // Validate courseId
     if (!courseId) {
-      console.error(`✗ Missing courseId`);
-      return NextResponse.json({ error: 'courseId is required' }, { status: 400 });
+      return NextResponse.json({ error: "courseId is required" }, { status: 400 });
     }
-    console.log(`✓ courseId present`);
 
-    if (!mongoose.Types.ObjectId.isValid(courseId)) {
-      console.error(`✗ Invalid courseId format: ${courseId}`);
-      return NextResponse.json({ error: 'Invalid courseId format' }, { status: 400 });
-    }
-    console.log(`✓ courseId is valid ObjectId`);
+    await dbConnect();
 
-    // Connect to database
-    console.log(`\n→ Connecting to database...`);
+    let resolved;
     try {
-      await dbConnect();
-      console.log(`✓ Database connected`);
-    } catch (dbErr) {
-      console.error(`✗ Database connection failed: ${dbErr instanceof Error ? dbErr.message : String(dbErr)}`);
-      return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+      resolved = await resolvePaymentOrder({
+        courseId,
+        studentId: auth.student.id,
+        paymentType,
+        termNo,
+        enrollmentId,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Unable to resolve payment";
+      const status = message.includes("Already enrolled") ? 409 : 400;
+      return NextResponse.json({ error: message }, { status });
     }
 
-    // Initialize Razorpay
-    console.log(`\n→ Initializing Razorpay...`);
-    let razorpayKeyId: string;
-    let razorpayKeySecret: string;
-    try {
-      ({ keyId: razorpayKeyId, keySecret: razorpayKeySecret } = assertRazorpayConfigured());
-    } catch {
-      console.error(`✗ Razorpay credentials missing in .env`);
-      return NextResponse.json(
-        { error: 'Payment gateway is not configured. Contact admin.' },
-        { status: 503 },
-      );
-    }
-
-    console.log(`✓ Razorpay credentials found`);
-    console.log(`  Key ID: ${razorpayKeyId.substring(0, 15)}...`);
-
-    const razorpay = new Razorpay({
-      key_id: razorpayKeyId,
-      key_secret: razorpayKeySecret,
-    });
-    console.log(`✓ Razorpay SDK initialized`);
-
-    // Create order
-    console.log(`\n→ Creating Razorpay order...`);
-    const orderAmount = Math.round(amount * 100); // amount in paise
-    const receipt = `rcpt_${Date.now()}`;
-
-    console.log(`  Amount in rupees: ₹${amount}`);
-    console.log(`  Amount in paise: ${orderAmount}`);
-    console.log(`  Receipt: ${receipt}`);
-    console.log(`  Student ID: ${auth.student.id}`);
-    console.log(`  Course ID: ${courseId}`);
+    const { keyId: razorpayKeyId, keySecret: razorpayKeySecret } = assertRazorpayConfigured();
+    const razorpay = new Razorpay({ key_id: razorpayKeyId, key_secret: razorpayKeySecret });
 
     const order = await razorpay.orders.create({
-      amount: orderAmount,
-      currency: 'INR',
-      receipt,
-      notes: { 
-        courseId, 
+      amount: Math.round(resolved.amount * 100),
+      currency: "INR",
+      receipt: `rcpt_${Date.now()}`,
+      notes: {
+        courseId,
         studentId: auth.student.id,
+        paymentType: resolved.paymentType,
+        termNo: String(resolved.termNo),
+        ...(resolved.enrollmentId ? { enrollmentId: resolved.enrollmentId } : {}),
       },
     });
 
-    console.log(`✓ Razorpay order created successfully!`);
-    console.log(`  Order ID: ${order.id}`);
-    console.log(`  Order status: ${order.status}`);
-    const parsedOrderAmount = Number(order.amount);
-    console.log(`  Amount: ₹${Number.isFinite(parsedOrderAmount) ? parsedOrderAmount / 100 : 'unknown'}`);
+    const student = await Student.findById(auth.student.id).select("fullName email phone fatherMobile");
+    const prefill = {
+      name: student?.fullName ?? "",
+      email: student?.email ?? "",
+      contact: normalizePhoneForRazorpay(student?.phone || student?.fatherMobile),
+    };
 
-    const duration = Date.now() - startTime;
-    console.log(`\n✓ ✓ ✓ ORDER CREATION COMPLETE ✓ ✓ ✓`);
-    console.log(`Duration: ${duration}ms`);
-    console.log('');
-
-    return NextResponse.json({ order, keyId: razorpayKeyId });
+    return NextResponse.json({
+      order,
+      keyId: razorpayKeyId,
+      amount: resolved.amount,
+      breakdown: resolved.breakdown,
+      termNo: resolved.termNo,
+      paymentType: resolved.paymentType,
+      enrollmentId: resolved.enrollmentId,
+      prefill,
+    });
   } catch (error) {
-    const duration = Date.now() - startTime;
-    console.error('\n');
-    console.error('╔═══════════════════════════════════════════╗');
-    console.error('║  CREATE PAYMENT ORDER API - ERROR         ║');
-    console.error('╚═══════════════════════════════════════════╝');
-    console.error(`Timestamp: ${new Date().toISOString()}`);
-    console.error(`Duration: ${duration}ms`);
-    console.error(`Error type: ${error instanceof Error ? error.constructor.name : typeof error}`);
-    console.error(`Error message: ${error instanceof Error ? error.message : String(error)}`);
-    if (error instanceof Error && error.stack) {
-      console.error(`Stack trace:\n${error.stack}`);
-    }
-    console.error(`Full error: ${JSON.stringify(error)}`);
-    console.error('');
-    
-    return NextResponse.json({ 
-      error: 'Failed to create order',
-      details: error instanceof Error ? error.message : 'Unknown error'
-    }, { status: 500 });
+    console.error("Create order error:", error);
+    return NextResponse.json(
+      {
+        error: "Failed to create order",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 },
+    );
   }
 }

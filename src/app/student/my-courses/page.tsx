@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import { BookOpen, AlertCircle, Loader2, GraduationCap, Calendar, Trophy, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from '@/hooks/use-toast';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
+import { PaymentSummaryCard } from '@/components/student/PaymentSummaryCard';
+import { PaymentStatusBadge } from '@/components/student/PaymentStatusBadge';
 
 interface EnrolledCourse {
   enrollmentId: string;
@@ -20,9 +20,34 @@ interface EnrolledCourse {
   enrollmentDate: string;
   completionPercentage: number;
   totalFees: number;
+  discountFees?: number;
   discountPercentage: number;
+  paymentType?: string;
+  baseAmount?: number;
+  gstAmount?: number;
+  installmentCharge?: number;
+  totalAmount?: number;
+  paidAmount?: number;
+  remainingAmount?: number;
   amount?: number;
   paymentStatus?: string;
+  paymentPlanStatus?: string;
+  nextDueDate?: string | null;
+  nextTermNo?: number | null;
+  installments?: Array<{
+    termNo: number;
+    amount: number;
+    dueDate: string;
+    paidDate?: string;
+    paymentStatus: string;
+  }>;
+  paymentHistory?: Array<{
+    paymentDate: string;
+    paymentId: string;
+    amount: number;
+    termNo: number;
+    status: string;
+  }>;
 }
 
 const getStatusColor = (status: string) => {
@@ -54,8 +79,6 @@ export default function MyCoursesPage() {
   const [loading, setLoading] = useState(true);
   const [downloadingCourseId, setDownloadingCourseId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-  const { user } = useAuth();
 
   useEffect(() => {
     fetchEnrolledCourses();
@@ -125,7 +148,6 @@ export default function MyCoursesPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      {/* Header Section */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-2">
           <div className="p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-lg">
@@ -138,7 +160,6 @@ export default function MyCoursesPage() {
         </div>
       </div>
 
-      {/* Loading State */}
       {loading && (
         <div className="flex flex-col items-center justify-center py-16">
           <div className="p-4 bg-white rounded-full shadow-lg mb-4">
@@ -148,7 +169,6 @@ export default function MyCoursesPage() {
         </div>
       )}
 
-      {/* Error State */}
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3">
           <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -156,18 +176,12 @@ export default function MyCoursesPage() {
             <h3 className="font-semibold text-red-900">Error Loading Courses</h3>
             <p className="text-red-800 text-sm mt-1">{error}</p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchEnrolledCourses}
-            className="flex-shrink-0"
-          >
+          <Button variant="outline" size="sm" onClick={fetchEnrolledCourses} className="flex-shrink-0">
             Retry
           </Button>
         </div>
       )}
 
-      {/* Empty State */}
       {!loading && courses.length === 0 && !error && (
         <div className="flex flex-col items-center justify-center py-16 bg-white rounded-2xl border-2 border-dashed border-slate-200 shadow-sm">
           <div className="p-4 bg-blue-100 rounded-full mb-4">
@@ -185,7 +199,6 @@ export default function MyCoursesPage() {
         </div>
       )}
 
-      {/* Courses Grid */}
       {!loading && courses.length > 0 && (
         <div className="space-y-6">
           <div className="text-sm text-slate-600">
@@ -198,7 +211,6 @@ export default function MyCoursesPage() {
                 key={course.enrollmentId}
                 className="group bg-white rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden border border-slate-100 hover:border-blue-200"
               >
-                {/* Course Image / Placeholder */}
                 <div className={`h-40 bg-gradient-to-br ${getCategoryColor(course.completionPercentage)} relative overflow-hidden flex items-center justify-center`}>
                   {course.image ? (
                     <img
@@ -212,17 +224,15 @@ export default function MyCoursesPage() {
                       <p className="text-xs font-medium opacity-60">No Image</p>
                     </div>
                   )}
-                  {/* Status Badge */}
-                  <div className="absolute top-3 right-3">
+                  <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
                     <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(course.status)}`}>
                       {getStatusLabel(course.status)}
                     </span>
+                    <PaymentStatusBadge status={course.paymentPlanStatus ?? course.paymentStatus} />
                   </div>
                 </div>
 
-                {/* Course Info */}
                 <div className="p-5 space-y-4">
-                  {/* Course Title & Code */}
                   <div>
                     <h3 className="text-lg font-bold text-slate-900 line-clamp-2 group-hover:text-blue-600 transition-colors">
                       {course.courseTitle}
@@ -230,13 +240,11 @@ export default function MyCoursesPage() {
                     <p className="text-xs text-slate-500 mt-1">Code: {course.courseCode}</p>
                   </div>
 
-                  {/* Instructor */}
                   <div className="flex items-center gap-2">
                     <GraduationCap className="w-4 h-4 text-blue-600 flex-shrink-0" />
                     <span className="text-sm text-slate-700 truncate">{course.instructor}</span>
                   </div>
 
-                  {/* Dates */}
                   <div className="flex items-center gap-2">
                     <Calendar className="w-4 h-4 text-blue-600 flex-shrink-0" />
                     <span className="text-sm text-slate-600">
@@ -248,7 +256,6 @@ export default function MyCoursesPage() {
                     </span>
                   </div>
 
-                  {/* Completion Progress */}
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-semibold text-slate-700">Progress</span>
@@ -262,29 +269,35 @@ export default function MyCoursesPage() {
                     </div>
                   </div>
 
-                  {/* Duration & Price */}
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div className="bg-slate-50 rounded-lg p-3 text-center">
-                      <div className="text-xs text-slate-600 mb-1">Duration</div>
-                      <div className="font-bold text-slate-900">{course.duration} month{course.duration !== 1 ? 's' : ''}</div>
-                    </div>
-                    <div className="bg-blue-50 rounded-lg p-3 text-center">
-                      <div className="text-xs text-slate-600 mb-1">Amount</div>
-                      <div className="font-bold text-blue-600">₹{course.totalFees}</div>
-                    </div>
-                  </div>
+                  <PaymentSummaryCard
+                    enrollmentId={course.enrollmentId}
+                    courseId={course.courseId}
+                    courseTitle={course.courseTitle}
+                    baseFee={course.discountFees ?? course.baseAmount ?? course.totalFees}
+                    duration={course.duration}
+                    paymentType={course.paymentType ?? 'full'}
+                    totalAmount={course.totalAmount ?? course.amount ?? 0}
+                    gstAmount={course.gstAmount ?? 0}
+                    installmentCharge={course.installmentCharge ?? 0}
+                    paidAmount={course.paidAmount ?? course.amount ?? 0}
+                    remainingAmount={course.remainingAmount ?? 0}
+                    paymentPlanStatus={course.paymentPlanStatus}
+                    nextDueDate={course.nextDueDate}
+                    nextTermNo={course.nextTermNo}
+                    installments={course.installments}
+                    paymentHistory={course.paymentHistory}
+                    onPaymentSuccess={fetchEnrolledCourses}
+                  />
 
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Link href={`/student/courses/${course.courseId}`} className="block">
-                      <Button
-                        className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition-all duration-300 hover:shadow-lg group-hover:shadow-lg"
-                      >
+                      <Button className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-3 rounded-lg transition-all duration-300 hover:shadow-lg">
                         <Trophy className="w-4 h-4 mr-2" />
                         View Course
                       </Button>
                     </Link>
                     <Button
-                      className="w-full rounded-[22px] bg-gradient-to-r from-sky-500 to-blue-600 text-white font-semibold py-3 transition transform duration-300 ease-out hover:from-sky-600 hover:to-blue-700 hover:-translate-y-0.5 hover:shadow-[0_14px_40px_-20px_rgba(56,189,248,0.45)]"
+                      className="w-full rounded-[22px] bg-gradient-to-r from-sky-500 to-blue-600 text-white font-semibold py-3 transition transform duration-300 ease-out hover:from-sky-600 hover:to-blue-700 hover:-translate-y-0.5"
                       onClick={() => handleDownloadInvoice(course.courseId)}
                       disabled={downloadingCourseId === course.courseId}
                     >

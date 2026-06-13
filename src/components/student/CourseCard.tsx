@@ -6,7 +6,6 @@ import {
   BookOpen, 
   Users, 
   Clock, 
-  IndianRupee, 
   User, 
   CheckCircle, 
   Loader2,
@@ -14,7 +13,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { cn } from "@/lib/utils";
+import { EnrollmentPaymentModal } from "@/components/student/EnrollmentPaymentModal";
 
 interface CourseCardProps {
   courseId: string;
@@ -49,8 +48,8 @@ export function CourseCard({
   isEnrolled = false,
   onEnrollSuccess,
 }: CourseCardProps) {
-  const [loading, setLoading] = useState(false);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [enrolled, setEnrolled] = useState(isEnrolled);
   const router = useRouter();
 
@@ -63,130 +62,22 @@ export function CourseCard({
   const percentage = Math.max(0, Number(discountPercentage ?? 0));
   const showDiscount = discountedPrice < originalPrice;
 
-  const handleEnroll = async () => {
+  const handleEnroll = () => {
     if (enrolled) return;
     if (!courseId) {
       toast({ title: 'Error', description: 'Invalid course selected.', variant: 'destructive' });
       return;
     }
-
     if (!Number.isFinite(discountedPrice) || discountedPrice <= 0) {
       toast({ title: 'Payment Error', description: 'Invalid course amount. Please contact support.', variant: 'destructive' });
       return;
     }
+    setPaymentModalOpen(true);
+  };
 
-    setLoading(true);
-    try {
-      // Create order on backend
-      const res = await fetch('/api/payment/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // Include cookies for authentication
-        body: JSON.stringify({ amount: discountedPrice, courseId }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast({ title: 'Payment Error', description: data.error || 'Failed to create payment order', variant: 'destructive' });
-        setLoading(false);
-        return;
-      }
-
-      const order = data.order;
-      const razorpayKeyId =
-        data.keyId ||
-        process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ||
-        "";
-
-      if (!order?.id || !razorpayKeyId) {
-        toast({
-          title: "Payment Error",
-          description: "Payment gateway key is missing. Contact support.",
-          variant: "destructive",
-        });
-        setLoading(false);
-        return;
-      }
-
-      // Load Razorpay script
-      await new Promise<void>((resolve, reject) => {
-        if (typeof window === 'undefined') return reject(new Error('No window'));
-        if ((window as unknown as { Razorpay?: unknown }).Razorpay) return resolve();
-        const script = document.createElement('script');
-        script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-        script.onload = () => resolve();
-        script.onerror = () => reject(new Error('Razorpay script failed to load'));
-        document.body.appendChild(script);
-      });
-
-      const options = {
-        key: razorpayKeyId,
-        amount: order.amount,
-        currency: order.currency || 'INR',
-        name: 'Little Brushes Art Academy',
-        description: courseTitle,
-        image: '/logo.png',
-        order_id: order.id,
-        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
-          try {
-            console.log('=== PAYMENT SUCCESS HANDLER ===');
-            console.log('Razorpay response:', response);
-            console.log('Sending verify request with:', {
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_signature: response.razorpay_signature,
-              amount: order.amount / 100,
-              courseId,
-            });
-
-            const verifyRes = await fetch('/api/payment/verify', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              credentials: 'include', // IMPORTANT: Include cookies for authentication
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                amount: order.amount / 100,
-                courseId,
-              }),
-            });
-            const verifyData = await verifyRes.json();
-            
-            console.log('Verify response:', {
-              status: verifyRes.status,
-              ok: verifyRes.ok,
-              data: verifyData,
-            });
-
-            if (!verifyRes.ok) {
-              console.error('Verification failed:', verifyData);
-              toast({ title: 'Payment Verify Failed', description: verifyData.error || 'Verification failed', variant: 'destructive' });
-              return;
-            }
-
-            console.log('Enrollment saved successfully!');
-            setEnrolled(true);
-            toast({ title: 'Enrolled', description: 'Payment successful and enrollment saved', variant: 'default' });
-            onEnrollSuccess?.();
-          } catch (err) {
-            console.error('Verify error', err);
-            toast({ title: 'Error', description: 'Payment verification error', variant: 'destructive' });
-          }
-        },
-        modal: {
-          ondismiss: () => setLoading(false),
-        },
-      };
-
-      const RazorpayCtor = (window as unknown as { Razorpay?: unknown }).Razorpay as unknown as new (opts: unknown) => { open: () => void };
-      const rzp = new RazorpayCtor(options as unknown);
-      rzp.open();
-    } catch (error) {
-      console.error('Enrollment error:', error);
-      toast({ title: 'Error', description: 'An error occurred during enrollment', variant: 'destructive' });
-    } finally {
-      setLoading(false);
-    }
+  const handlePaymentSuccess = () => {
+    setEnrolled(true);
+    onEnrollSuccess?.();
   };
 
   const getInvoiceFileName = () => {
@@ -335,7 +226,7 @@ export function CourseCard({
         <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center">
           <Button
             onClick={handleView}
-            disabled={loading}
+            disabled={invoiceLoading}
             variant="outline"
             className="flex-1 min-w-0 rounded-[22px] border-blue-500 bg-white text-slate-900 shadow-sm shadow-slate-200/60 py-3 px-4 text-sm font-semibold transition duration-300 ease-out hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-blue-200/40"
           >
@@ -372,14 +263,11 @@ export function CourseCard({
           ) : (
             <Button
               onClick={handleEnroll}
-              disabled={loading || status !== 'active'}
+              disabled={status !== 'active'}
               className="flex-1 min-w-0 rounded-[22px] bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-slate-900/10 py-3 px-4 text-sm font-semibold transition duration-300 ease-out hover:-translate-y-0.5 hover:shadow-[0_18px_45px_-24px_rgba(59,130,246,0.85)]"
             >
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
-                </>
+              {status !== 'active' ? (
+                'Unavailable'
               ) : (
                 'Enroll Now'
               )}
@@ -387,6 +275,16 @@ export function CourseCard({
           )}
         </div>
       </div>
+
+      <EnrollmentPaymentModal
+        open={paymentModalOpen}
+        onOpenChange={setPaymentModalOpen}
+        courseId={courseId}
+        courseTitle={courseTitle}
+        baseFee={discountedPrice}
+        duration={duration}
+        onSuccess={handlePaymentSuccess}
+      />
     </div>
   );
 }

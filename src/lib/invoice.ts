@@ -8,6 +8,7 @@ export interface EnrollmentInvoiceData {
   courseTitle: string;
   courseCode: string;
   courseDurationMonths: number;
+  baseAmount?: number;
   amountPaid: number;
   discountPercentage: number;
   discountAmount: number;
@@ -16,6 +17,9 @@ export interface EnrollmentInvoiceData {
   orderId: string;
   purchaseDate: string;
   taxAmount: number;
+  installmentCharge?: number;
+  paymentType?: 'full' | 'installment';
+  termNo?: number;
   supportEmail: string;
   supportPhone: string;
   gstNumber?: string;
@@ -65,11 +69,19 @@ export async function generateEnrollmentInvoicePdf(data: EnrollmentInvoiceData):
     ['Course Name', data.courseTitle],
     ['Course Code', data.courseCode],
     ['Duration', `${data.courseDurationMonths} month${data.courseDurationMonths !== 1 ? 's' : ''}`],
+    ...(data.baseAmount != null ? [['Base Amount', formatCurrency(data.baseAmount)] as [string, string]] : []),
+    ['GST (18%)', formatCurrency(data.taxAmount)],
+    ...(data.installmentCharge
+      ? [['Installment Charges', formatCurrency(data.installmentCharge)] as [string, string]]
+      : []),
+    ...(data.paymentType === 'installment' && data.termNo
+      ? [['Installment Term', `Term ${data.termNo}`] as [string, string]]
+      : []),
     ['Amount Paid', formatCurrency(data.amountPaid)],
     ['Discount', `${data.discountPercentage}% (${formatCurrency(data.discountAmount)})`],
-    ['GST / Tax', formatCurrency(data.taxAmount)],
     ['Payment Method', data.paymentMethod],
-    ['Transaction ID', data.transactionId],
+    ['Payment ID', data.transactionId],
+    ['Invoice Number', data.invoiceId],
     ['Order ID', data.orderId],
   ];
 

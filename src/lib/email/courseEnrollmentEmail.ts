@@ -73,8 +73,8 @@ export function buildCourseEnrollmentEmailHtml(params: {
           <tr>
             <td style="background:#f8fafc;padding:24px 32px;color:#475569;font-size:13px;line-height:1.8;">
               <p style="margin:0 0 4px;color:#0f172a;font-weight:700;">Support</p>
-              <p style="margin:0;">Email: ${escapeHtml(supportEmail)}</p>
-              <p style="margin:8px 0 0;">Phone: ${escapeHtml(supportPhone)}</p>
+              <p style="margin:0;">Email: <a href="mailto:${escapeHtml(supportEmail)}" style="color:#1d4ed8;text-decoration:underline;">${escapeHtml(supportEmail)}</a></p>
+              <p style="margin:8px 0 0;">Phone: <a href="${phoneTelHref(supportPhone)}" style="color:#1d4ed8;text-decoration:underline;">${escapeHtml(supportPhone)}</a></p>
             </td>
           </tr>
         </table>
@@ -104,6 +104,13 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#039;');
 }
 
+function phoneTelHref(phone: string) {
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return "";
+  const normalized = digits.length === 10 ? `91${digits}` : digits;
+  return `tel:+${normalized}`;
+}
+
 export async function sendCourseEnrollmentEmail(params: {
   studentEmail: string;
   studentName: string;
@@ -121,6 +128,11 @@ export async function sendCourseEnrollmentEmail(params: {
   discountPercentage: number;
   discountAmount: number;
   gstNumber?: string;
+  baseAmount?: number;
+  gstAmount?: number;
+  installmentCharge?: number;
+  termNo?: number;
+  paymentType?: 'full' | 'installment';
 }): Promise<void> {
   const {
     studentEmail,
@@ -139,6 +151,11 @@ export async function sendCourseEnrollmentEmail(params: {
     discountPercentage,
     discountAmount,
     gstNumber,
+    baseAmount,
+    gstAmount,
+    installmentCharge,
+    termNo,
+    paymentType,
   } = params;
 
   const invoiceData: EnrollmentInvoiceData = {
@@ -156,7 +173,11 @@ export async function sendCourseEnrollmentEmail(params: {
     transactionId,
     orderId,
     purchaseDate: enrollmentDate,
-    taxAmount: 0,
+    taxAmount: params.gstAmount ?? 0,
+    baseAmount: params.baseAmount,
+    installmentCharge: params.installmentCharge,
+    paymentType: params.paymentType,
+    termNo: params.termNo,
     supportEmail,
     supportPhone,
     gstNumber,

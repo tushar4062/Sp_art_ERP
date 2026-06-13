@@ -105,28 +105,28 @@ export function RoleLayout({ navItems, role, children }: { navItems: Array<NavIt
   };
 
   return (
-    <div className="min-h-screen flex w-full bg-background">
+    <div className="flex h-dvh w-full overflow-hidden bg-background">
       {/* Sidebar */}
       <aside
         className={cn(
-          "fixed lg:sticky top-0 left-0 z-40 h-screen w-64 shrink-0 bg-sidebar border-r border-sidebar-border flex flex-col transition-transform",
+          "fixed lg:sticky top-0 left-0 z-40 flex h-dvh w-64 shrink-0 flex-col bg-sidebar border-r border-sidebar-border transition-transform",
           open ? "translate-x-0" : "-translate-x-full lg:translate-x-0",
         )}
       >
-        <div className="px-5 h-16 border-b border-sidebar-border flex items-center justify-between">
+        <div className="shrink-0 px-5 h-16 border-b border-sidebar-border flex items-center justify-between">
           <Logo />
           <button onClick={() => setOpen(false)} className="lg:hidden p-2 rounded-lg hover:bg-muted">
             <X className="w-5 h-5" />
           </button>
         </div>
-        <div className="mx-3 mt-4 mb-2 rounded-lg px-3 py-2.5 bg-muted/60 border border-border">
+        <div className="mx-3 mt-4 mb-2 shrink-0 rounded-lg px-3 py-2.5 bg-muted/60 border border-border">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold">Signed in as</div>
           <div className="flex items-center gap-2 mt-0.5">
             <span className="w-1.5 h-1.5 rounded-full" style={{ background: `hsl(${theme.hsl})` }} />
             <div className="font-display font-semibold text-sm text-foreground">{ROLE_LABELS[role]}</div>
           </div>
         </div>
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4 scroll-smooth scrollbar-thin scrollbar-thumb-muted/40 scrollbar-track-transparent">
+        <nav className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2 py-3 space-y-4 scroll-smooth scrollbar-thin scrollbar-thumb-muted/40 scrollbar-track-transparent">
           {navItems.map((item, index) => {
             if (isSection(item)) {
               return (
@@ -144,7 +144,7 @@ export function RoleLayout({ navItems, role, children }: { navItems: Array<NavIt
             return renderNavItem(item);
           })}
         </nav>
-        <div className="p-3 border-t border-sidebar-border">
+        <div className="shrink-0 p-3 border-t border-sidebar-border">
           <div className="mb-2 px-2 text-[10px] uppercase tracking-[0.26em] text-muted-foreground/80">
             System
           </div>
@@ -161,8 +161,8 @@ export function RoleLayout({ navItems, role, children }: { navItems: Array<NavIt
       {open && <div className="fixed inset-0 z-30 bg-foreground/40 lg:hidden" onClick={() => setOpen(false)} />}
 
       {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-        <header className="sticky top-0 z-20 bg-background/85 backdrop-blur border-b border-border">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <header className="sticky top-0 z-20 shrink-0 bg-background/85 backdrop-blur border-b border-border">
           <div className="flex items-center justify-between gap-3 px-4 sm:px-6 h-14">
             <button className="lg:hidden p-2 rounded-lg hover:bg-muted" onClick={() => setOpen(true)}>
               <Menu className="w-5 h-5" />
@@ -257,7 +257,7 @@ export function RoleLayout({ navItems, role, children }: { navItems: Array<NavIt
             </div>
           </div>
         </header>
-        <main className="flex-1 min-h-0 p-4 sm:p-6 max-w-full">
+        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 max-w-full scroll-smooth scrollbar-thin">
           {children}
         </main>
       </div>
